@@ -43,17 +43,23 @@ jobs:
       - name: 🔄 Cập nhật danh sách proxy mỗi phút trong 5 giờ
         run: |
           for i in $(seq 1 300); do
+            echo "🔄 [Lần $i] Đang tải danh sách proxy..."
+
             # Kiểm tra máy chủ proxy có hoạt động không
             nc -z 127.0.0.1 8000
             if [ $? -ne 0 ]; then
-              echo "❌ Máy chủ proxy chưa chạy, bỏ qua lần này."
+              echo "❌ Máy chủ proxy chưa chạy, chờ 1 phút..."
               sleep 60
               continue
             fi
 
-            # Tải proxy và lưu vào http.txt
-            curl -s --connect-timeout 5 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt
-            
+            # Tải proxy, nếu lỗi thì bỏ qua lần này
+            curl -s --connect-timeout 5 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt || {
+              echo "⚠️ Lỗi khi tải proxy, bỏ qua lần này."
+              sleep 60
+              continue
+            }
+
             # Kiểm tra nếu http.txt có dữ liệu thì commit & push
             if [ -s http.txt ]; then
               echo "✅ Proxy mới đã tải, tiến hành commit & push..."
