@@ -36,8 +36,8 @@ jobs:
 
       - name: Cập nhật danh sách proxy mỗi phút trong 5 giờ
         run: |
-          for i in {1..300}; do
-            echo "" > http.txt  # Làm sạch file http.txt
+          for i in $(seq 1 300); do
+            echo "" > http.txt  # Xóa nội dung file http.txt
             curl -s 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt
             echo "Nội dung file http.txt:"
             cat http.txt
@@ -52,5 +52,5 @@ jobs:
               echo "Không có proxy nào, bỏ qua commit."
             fi
             
-            sleep 60  # Chờ 1 phút trước khi lặp lại
+            sleep 60  # Chờ 1 phút
           done
