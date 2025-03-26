@@ -41,6 +41,8 @@ jobs:
 
       - name: 🔄 Cập nhật danh sách proxy mỗi phút trong 5 giờ
         run: |
+          mkdir -p Proxies  # Đảm bảo thư mục tồn tại
+
           for i in $(seq 1 300); do
             echo "🔄 [Lần $i] Đang tải danh sách proxy..."
 
@@ -57,13 +59,13 @@ jobs:
               [ -s "$file" ] && echo "✅ Cập nhật $file" || echo "⚠️ Không có proxy mới cho $type"
             done
 
-            # Commit nếu có thay đổi
-            if git diff --quiet Proxies/; then
-              echo "⚠️ Không có thay đổi, bỏ qua commit."
-            else
-              git add Proxies/*
+            # Kiểm tra thay đổi
+            if [[ -n $(git status --porcelain Proxies/) ]]; then
+              git add Proxies/http.txt Proxies/https.txt Proxies/socks4.txt Proxies/socks5.txt
               git commit -m "🔄 Cập nhật danh sách proxy $(date)"
               git push origin main || echo "⚠️ Không thể đẩy lên repo, thử lại lần sau."
+            else
+              echo "⚠️ Không có thay đổi, bỏ qua commit."
             fi
 
             sleep 60
