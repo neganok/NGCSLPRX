@@ -34,6 +34,11 @@ jobs:
           source env/bin/activate
           python3 start.py &
 
+      - name: Cấu hình Git
+        run: |
+          git config --global user.name "neganok"
+          git config --global user.email "hackersvn1@gmail.com"
+
       - name: Cập nhật danh sách proxy mỗi phút trong 5 giờ
         run: |
           for i in $(seq 1 300); do
@@ -57,4 +62,3 @@ jobs:
         with:
           github_token: ${{ secrets.GH_TOKEN }}
           branch: main
-
