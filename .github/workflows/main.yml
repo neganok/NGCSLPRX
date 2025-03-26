@@ -1,0 +1,49 @@
+name: Setup Proxy Machine
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */5 * * *'
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cập nhật hệ thống và cài đặt Python
+        run: |
+          sudo apt update && sudo apt install git python3-full python3-pip -y
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Thiết lập môi trường venv và cài đặt yêu cầu
+        run: |
+          python3 -m venv env
+          source env/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Chạy start.py và giữ tiến trình chạy trong 5 giờ
+        run: |
+          source env/bin/activate
+          python3 start.py &
+          sleep 18000
+
+      - name: Cập nhật danh sách proxy mỗi 5 phút trong 5 giờ
+        run: |
+          for i in {1..60}; do
+            rm -f http.txt
+            curl 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt
+            git config --global user.name "neganok"
+            git config --global user.email "hackersvn1@gmail.com"
+            git add http.txt
+            git commit -m "Cập nhật danh sách proxy mới"
+            git push
+            sleep 300
+          done
