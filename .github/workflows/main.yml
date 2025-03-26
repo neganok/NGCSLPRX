@@ -11,6 +11,9 @@ on:
   schedule:
     - cron: '0 */5 * * *'  # Chạy mỗi 5 giờ
 
+permissions:
+  contents: write  # ✅ Cấp quyền ghi để `git push` hoạt động
+
 jobs:
   setup:
     runs-on: ubuntu-latest
