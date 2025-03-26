@@ -43,14 +43,18 @@ jobs:
             if [ -s http.txt ]; then
               echo "Proxy đã tải:"
               cat http.txt
-              git config --global user.name "neganok"
-              git config --global user.email "hackersvn1@gmail.com"
               git add http.txt
               git commit -m "Cập nhật danh sách proxy mới" || echo "Không có gì để commit"
-              git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/neganok/project-proxy-machine.git || echo "Push thất bại"
             else
               echo "Không có proxy, bỏ qua commit."
             fi
             
             sleep 60  # Chờ 1 phút trước khi lặp lại
           done
+
+      - name: Push changes
+        uses: ad-m/github-push-action@v0.7.0
+        with:
+          github_token: ${{ secrets.GH_TOKEN }}
+          branch: main
+
