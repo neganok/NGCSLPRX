@@ -52,18 +52,30 @@ jobs:
               continue
             fi
 
-            # Lấy proxy từng loại
+            updated=false
+
             for type in http https socks4 socks5; do
               file="Proxies/${type}.txt"
-              curl -s --connect-timeout 5 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "$file"
-              [ -s "$file" ] && echo "✅ Cập nhật $file" || echo "⚠️ Không có proxy mới cho $type"
+              temp_file="Proxies/${type}.tmp"
+
+              curl -s --connect-timeout 5 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "$temp_file"
+              
+              if [ -s "$temp_file" ]; then
+                mv "$temp_file" "$file"
+                echo "✅ Cập nhật $file"
+                updated=true
+              else
+                echo "⚠️ Không có proxy mới cho $type"
+                rm -f "$temp_file"
+              fi
             done
 
-            # Kiểm tra thay đổi
-            if [[ -n $(git status --porcelain Proxies/) ]]; then
+            if $updated; then
+              git pull --rebase origin main || echo "⚠️ Lỗi khi pull, tiếp tục đẩy thay đổi..."
+              
               git add Proxies/http.txt Proxies/https.txt Proxies/socks4.txt Proxies/socks5.txt
               git commit -m "🔄 Cập nhật danh sách proxy $(date)"
-              git push origin main || echo "⚠️ Không thể đẩy lên repo, thử lại lần sau."
+              git push origin main || echo "⚠️ Không thể đẩy lên repo, kiểm tra thủ công."
             else
               echo "⚠️ Không có thay đổi, bỏ qua commit."
             fi
