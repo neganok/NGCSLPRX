@@ -41,21 +41,23 @@ jobs:
 
       - name: Cập nhật danh sách proxy mỗi phút trong 5 giờ
         run: |
+          mkdir -p Proxies  # Đảm bảo thư mục Proxies tồn tại
           for i in $(seq 1 300); do
-            echo "" > http.txt  # Làm sạch file http.txt
-            curl -s 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt || echo "Lỗi tải proxy"
-            
-            if [ -s http.txt ]; then
+            echo "" > Proxies/http.txt  # Làm sạch file http.txt
+            curl -s 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o Proxies/http.txt || echo "Lỗi tải proxy"
+
+            if [ -s Proxies/http.txt ]; then
               echo "Proxy đã tải:"
-              cat http.txt
-              git add http.txt
+              cat Proxies/http.txt
+              git add Proxies/http.txt
               git commit -m "Cập nhật danh sách proxy mới" || echo "Không có gì để commit"
             else
               echo "Không có proxy, bỏ qua commit."
             fi
-            
+
             sleep 60  # Chờ 1 phút trước khi lặp lại
           done
+
 
       - name: Push changes
         uses: ad-m/github-push-action@v0.7.0
