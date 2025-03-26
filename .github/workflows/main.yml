@@ -47,7 +47,7 @@ jobs:
               git config --global user.email "hackersvn1@gmail.com"
               git add http.txt
               git commit -m "Cập nhật danh sách proxy mới" || echo "Không có gì để commit"
-              git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/USERNAME/REPO.git || echo "Push thất bại"
+              git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/neganok/project-proxy-machine.git || echo "Push thất bại"
             else
               echo "Không có proxy, bỏ qua commit."
             fi
