@@ -42,24 +42,18 @@ jobs:
       - name: Cập nhật danh sách proxy mỗi phút trong 5 giờ
         run: |
           for i in $(seq 1 300); do
-            echo "" > http.txt  # Xóa nội dung cũ trong file
-            curl -s 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt || echo "Lỗi tải proxy"
-
+            # Tải proxy và ghi vào file http.txt
+            curl -s 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt
+            
+            # Kiểm tra nếu http.txt có dữ liệu thì commit & push
             if [ -s http.txt ]; then
-              echo "Proxy đã tải:"
-              cat http.txt
-              
-              # Kiểm tra nếu có thay đổi thì mới commit
-              if ! git diff --quiet http.txt; then
-                git add http.txt
-                git commit -m "Cập nhật danh sách proxy mới"
-                git push origin main
-              else
-                echo "Không có thay đổi, bỏ qua commit."
-              fi
+              echo "✅ Proxy mới đã tải, tiến hành commit & push..."
+              git add http.txt
+              git commit -a -m "🔄 Cập nhật danh sách proxy $(date)"
+              git push origin main
             else
-              echo "Không có proxy, bỏ qua commit."
+              echo "❌ Không có proxy mới, bỏ qua commit."
             fi
 
-            sleep 60  # Chờ 1 phút trước khi lặp lại
+            sleep 60  # Chờ 1 phút trước khi tiếp tục
           done
