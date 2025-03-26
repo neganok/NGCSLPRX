@@ -40,8 +40,8 @@ jobs:
           for i in {1..60}; do
             rm -f http.txt
             curl 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt
-            git config --global user.name "github-actions"
-            git config --global user.email "github-actions@github.com"
+            git config --global user.name "neganok"
+            git config --global user.email "hackersvn1@gmail.com"
             git add http.txt
             git commit -m "Cập nhật danh sách proxy mới"
             git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/USERNAME/REPO.git
