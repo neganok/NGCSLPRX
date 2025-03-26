@@ -9,7 +9,7 @@ on:
       - main
   workflow_dispatch:
   schedule:
-    - cron: '0 */5 * * *'
+    - cron: '0 */5 * * *'  # Chạy mỗi 5 giờ
 
 jobs:
   setup:
@@ -37,20 +37,20 @@ jobs:
       - name: Cập nhật danh sách proxy mỗi phút trong 5 giờ
         run: |
           for i in $(seq 1 300); do
-            echo "" > http.txt  # Xóa nội dung file http.txt
-            curl -s 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt
-            echo "Nội dung file http.txt:"
-            cat http.txt
+            echo "" > http.txt  # Làm sạch file http.txt
+            curl -s 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt || echo "Lỗi tải proxy"
             
             if [ -s http.txt ]; then
+              echo "Proxy đã tải:"
+              cat http.txt
               git config --global user.name "neganok"
               git config --global user.email "hackersvn1@gmail.com"
               git add http.txt
-              git commit -m "Cập nhật danh sách proxy mới"
-              git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/USERNAME/REPO.git
+              git commit -m "Cập nhật danh sách proxy mới" || echo "Không có gì để commit"
+              git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/USERNAME/REPO.git || echo "Push thất bại"
             else
-              echo "Không có proxy nào, bỏ qua commit."
+              echo "Không có proxy, bỏ qua commit."
             fi
             
-            sleep 60  # Chờ 1 phút
+            sleep 60  # Chờ 1 phút trước khi lặp lại
           done
