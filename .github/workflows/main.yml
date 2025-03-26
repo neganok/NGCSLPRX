@@ -33,17 +33,24 @@ jobs:
         run: |
           source env/bin/activate
           python3 start.py &
-          sleep 18000
 
-      - name: Cập nhật danh sách proxy mỗi 5 phút trong 5 giờ
+      - name: Cập nhật danh sách proxy mỗi phút trong 5 giờ
         run: |
-          for i in {1..60}; do
-            rm -f http.txt
-            curl 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt
-            git config --global user.name "neganok"
-            git config --global user.email "hackersvn1@gmail.com"
-            git add http.txt
-            git commit -m "Cập nhật danh sách proxy mới"
-            git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/USERNAME/REPO.git
-            sleep 300
+          for i in {1..300}; do
+            echo "" > http.txt  # Làm sạch file http.txt
+            curl -s 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt
+            echo "Nội dung file http.txt:"
+            cat http.txt
+            
+            if [ -s http.txt ]; then
+              git config --global user.name "neganok"
+              git config --global user.email "hackersvn1@gmail.com"
+              git add http.txt
+              git commit -m "Cập nhật danh sách proxy mới"
+              git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/USERNAME/REPO.git
+            else
+              echo "Không có proxy nào, bỏ qua commit."
+            fi
+            
+            sleep 60  # Chờ 1 phút trước khi lặp lại
           done
