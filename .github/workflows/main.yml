@@ -33,7 +33,7 @@ jobs:
       - name: 🚀 Chạy start.py và giữ tiến trình chạy trong 5 giờ
         run: |
           source env/bin/activate
-          nohup python3 start.py > start.log 2>&1 &  # Chạy nền tránh bị kill
+          nohup python3 start.py > start.log 2>&1 &
 
       - name: 🔑 Cấu hình Git
         run: |
@@ -53,14 +53,15 @@ jobs:
               continue
             fi
 
-            # Tải proxy, nếu lỗi thì bỏ qua lần này
-            curl -s --connect-timeout 5 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt || {
+            # Tải proxy, nếu thất bại thì bỏ qua lần này
+            curl -s --connect-timeout 5 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt
+            if [ $? -ne 0 ]; then
               echo "⚠️ Lỗi khi tải proxy, bỏ qua lần này."
               sleep 60
               continue
-            }
+            fi
 
-            # Kiểm tra nếu http.txt có dữ liệu thì commit & push
+            # Kiểm tra nếu http.txt có dữ liệu
             if [ -s http.txt ]; then
               echo "✅ Proxy mới đã tải, tiến hành commit & push..."
               git add http.txt
@@ -70,5 +71,5 @@ jobs:
               echo "❌ Không có proxy mới, bỏ qua commit."
             fi
 
-            sleep 60  # Chờ 1 phút trước khi tiếp tục
-          done
+            sleep 60
+          done || true  # Không để vòng lặp bị crash nếu có lỗi
