@@ -12,7 +12,7 @@ on:
     - cron: '0 */5 * * *'  # Chạy mỗi 5 giờ
 
 permissions:
-  contents: write  # ✅ Cấp quyền ghi để `git push` hoạt động
+  contents: write
 
 jobs:
   setup:
@@ -24,16 +24,12 @@ jobs:
       - name: 📦 Cập nhật hệ thống và cài đặt Python
         run: |
           sudo apt update
-          sudo apt install -y git python3-full python3-pip curl
-
-      - name: 🔧 Thiết lập môi trường ảo và cài đặt yêu cầu
-        run: |
+          sudo apt install -y git python3-pip curl
           python3 -m venv env
           source env/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install --upgrade pip -r requirements.txt
 
-      - name: 🚀 Chạy start.py và giữ tiến trình chạy trong 5 giờ
+      - name: 🚀 Chạy start.py
         run: |
           source env/bin/activate
           nohup python3 start.py > start.log 2>&1 &
@@ -45,34 +41,32 @@ jobs:
 
       - name: 🔄 Cập nhật danh sách proxy mỗi phút trong 5 giờ
         run: |
+          mkdir -p Proxies  # Tạo thư mục nếu chưa có
+
           for i in $(seq 1 300); do
             echo "🔄 [Lần $i] Đang tải danh sách proxy..."
 
-            # Kiểm tra máy chủ proxy có hoạt động không
-            nc -z 127.0.0.1 8000
-            if [ $? -ne 0 ]; then
+            if ! nc -z 127.0.0.1 8000; then
               echo "❌ Máy chủ proxy chưa chạy, chờ 1 phút..."
               sleep 60
               continue
             fi
 
-            # Tải proxy, nếu thất bại thì bỏ qua lần này
-            curl -s --connect-timeout 5 'http://127.0.0.1:8000/proxy/http?time=2&minutes=10&format=text' -o http.txt
-            if [ $? -ne 0 ]; then
-              echo "⚠️ Lỗi khi tải proxy, bỏ qua lần này."
-              sleep 60
-              continue
-            fi
+            # Lấy proxy từng loại
+            for type in http https socks4 socks5; do
+              file="Proxies/${type}.txt"
+              curl -s --connect-timeout 5 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "$file"
+              [ -s "$file" ] && echo "✅ Cập nhật $file" || echo "⚠️ Không có proxy mới cho $type"
+            done
 
-            # Kiểm tra nếu http.txt có dữ liệu
-            if [ -s http.txt ]; then
-              echo "✅ Proxy mới đã tải, tiến hành commit & push..."
-              git add http.txt
-              git commit -m "🔄 Cập nhật danh sách proxy $(date)" || echo "⚠️ Không có thay đổi, bỏ qua commit."
-              git push origin main || echo "⚠️ Không thể đẩy lên repo, thử lại lần sau."
+            # Commit nếu có thay đổi
+            if git diff --quiet; then
+              echo "⚠️ Không có thay đổi, bỏ qua commit."
             else
-              echo "❌ Không có proxy mới, bỏ qua commit."
+              git add Proxies/*
+              git commit -m "🔄 Cập nhật danh sách proxy $(date)"
+              git push origin main || echo "⚠️ Không thể đẩy lên repo, thử lại lần sau."
             fi
 
             sleep 60
-          done || true  # Không để vòng lặp bị crash nếu có lỗi
+          done
