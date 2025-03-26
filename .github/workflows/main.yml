@@ -71,8 +71,19 @@ jobs:
             done
 
             if $updated; then
-              git pull --rebase origin main || echo "⚠️ Lỗi khi pull, tiếp tục đẩy thay đổi..."
+              echo "🔄 Lưu thay đổi tạm thời trước khi pull..."
+              git stash push -m "Auto-stash before pull"
+
+              echo "🔄 Đồng bộ với repo từ xa..."
+              git pull --rebase origin main || {
+                echo "⚠️ Lỗi khi pull, thử lại sau."
+                git stash pop || true  # Khôi phục thay đổi nếu pull lỗi
+                continue
+              }
+
+              git stash pop || true  # Áp dụng lại thay đổi sau pull
               
+              echo "✅ Commit & Push thay đổi..."
               git add Proxies/http.txt Proxies/https.txt Proxies/socks4.txt Proxies/socks5.txt
               git commit -m "🔄 Cập nhật danh sách proxy $(date)"
               git push origin main || echo "⚠️ Không thể đẩy lên repo, kiểm tra thủ công."
