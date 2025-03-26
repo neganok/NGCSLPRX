@@ -41,8 +41,6 @@ jobs:
 
       - name: 🔄 Cập nhật danh sách proxy mỗi phút trong 5 giờ
         run: |
-          mkdir -p Proxies  # Tạo thư mục nếu chưa có
-
           for i in $(seq 1 300); do
             echo "🔄 [Lần $i] Đang tải danh sách proxy..."
 
@@ -60,7 +58,7 @@ jobs:
             done
 
             # Commit nếu có thay đổi
-            if git diff --quiet; then
+            if git diff --quiet Proxies/; then
               echo "⚠️ Không có thay đổi, bỏ qua commit."
             else
               git add Proxies/*
