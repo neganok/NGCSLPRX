@@ -1,0 +1,10 @@
+requests
+urllib3
+ipaddress
+socks
+PySocks
+fastapi
+sqlalchemy
+uvicorn
+aiohttp
+asyncio
