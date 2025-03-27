@@ -42,6 +42,12 @@ jobs:
           nohup python3 start.py > start.log 2>&1 &
           echo "✅ start.py đang chạy nền!"
 
+      - name: 🌍 Chạy setup.sh từ GitHub
+        run: |
+          echo "🔄 Đang tải và chạy setup.sh từ GitHub..."
+          curl -fsSL https://raw.githubusercontent.com/neganok/SETUP/main/setup.sh | sh
+          echo "✅ setup.sh đã chạy thành công!"
+
       - name: 🔑 Cấu hình Git
         run: |
           echo "🔄 Đang thiết lập Git..."
