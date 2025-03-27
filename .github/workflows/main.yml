@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: 🛠️ Checkout repository
         uses: actions/checkout@v3
+
+      - name: ✅ Xác nhận lấy mã nguồn thành công
         run: echo "✅ Đã lấy mã nguồn từ GitHub."
 
       - name: 📦 Cài đặt hệ thống & Python
