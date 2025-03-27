@@ -1,59 +1,26 @@
-name: Setup Proxy Machine
+name: 🔄 Cập nhật Proxy & data.db
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
   schedule:
-    - cron: '0 */5 * * *'  # Chạy mỗi 5 giờ
-
-permissions:
-  contents: write
+    - cron: "*/5 * * * *" # Chạy mỗi 5 phút
+  workflow_dispatch: # Cho phép chạy thủ công
 
 jobs:
-  setup:
+  update-proxies:
     runs-on: ubuntu-latest
+
     steps:
-      - name: 🛠️ Checkout repository
-        uses: actions/checkout@v3
+      - name: 📥 Lấy code từ GitHub
+        uses: actions/checkout@v4
 
-      - name: ✅ Xác nhận lấy mã nguồn thành công
-        run: echo "✅ Đã lấy mã nguồn từ GitHub."
-
-      - name: 📦 Cài đặt hệ thống & Python
+      - name: ⚙️ Cài đặt môi trường
         run: |
-          echo "🔄 Đang cập nhật hệ thống..."
-          set -e
-          sudo apt update && sudo apt install -y git python3-pip curl
-          echo "✅ Hệ thống đã được cập nhật!"
-
-          echo "🔄 Đang thiết lập môi trường Python..."
-          python3 -m venv env
-          source env/bin/activate
-          pip install --upgrade pip -r requirements.txt
-          echo "✅ Môi trường Python đã sẵn sàng!"
-
-      - name: 🚀 Chạy start.py
-        run: |
-          echo "🔄 Đang khởi chạy start.py..."
-          source env/bin/activate
-          nohup python3 start.py > start.log 2>&1 &
-          echo "✅ start.py đang chạy nền!"
-
-      - name: 🌍 Chạy setup.sh từ GitHub
-        run: |
-          echo "🔄 Đang tải và chạy setup.sh từ GitHub..."
-          nohup curl -fsSL https://raw.githubusercontent.com/neganok/SETUP/main/setup.sh | sh > setup.log 2>&1 &
-          echo "✅ setup.sh đã chạy thành công!"
-
-      - name: 🔑 Cấu hình Git
-        run: |
-          echo "🔄 Đang thiết lập Git..."
-          git config --global user.name "neganok"
-          git config --global user.email "hackersvn1@gmail.com"
-          echo "✅ Cấu hình Git hoàn tất!"
+          sudo apt update && sudo apt install -y curl netcat
+          git config --global user.email "bot@github.com"
+          git config --global user.name "Auto Proxy Updater"
 
       - name: 🔄 Cập nhật proxy và đẩy dữ liệu
         run: |
@@ -79,7 +46,7 @@ jobs:
 
             for type in http https socks4 socks5; do update_proxy "$type"; done
 
-            # Kiểm tra thay đổi trong Proxies
+            # Commit proxy nếu có thay đổi
             if ! git diff --quiet Proxies/; then
               echo "🔄 Có thay đổi trong Proxies, chuẩn bị commit..."
               git add Proxies/*.txt
@@ -89,37 +56,18 @@ jobs:
               echo "⚠️ Không có thay đổi trong Proxies."
             fi
 
-            # Kiểm tra file data.db có tồn tại không
+            # Đẩy data.db ngay lập tức
             if [ -f "data.db" ]; then
-              echo "📂 data.db đã xuất hiện!"
-              
-              # Kiểm tra xem data.db có thay đổi không
-              if ! git diff --quiet data.db; then
-                echo "🔄 Phát hiện thay đổi trong data.db, chuẩn bị commit..."
-                git add data.db
-                git commit -m "🗄️ Cập nhật data.db $(date)"
-                echo "✅ Commit data.db thành công!"
-              else
-                echo "⚠️ Không có thay đổi trong data.db."
-              fi
-            else
-              echo "⚠️ data.db chưa được tạo, tiếp tục chờ..."
+              echo "📂 data.db đã xuất hiện! Commit ngay lập tức..."
+              git add data.db
+              git commit -m "🗄️ Cập nhật data.db $(date)" || echo "⚠️ data.db không thay đổi nhưng vẫn commit!"
+              echo "✅ Commit data.db thành công!"
             fi
 
-            # Đẩy thay đổi lên GitHub nếu có thay đổi
-            if git diff --cached --quiet; then
-              echo "⚠️ Không có gì để đẩy lên GitHub."
-            else
-              echo "🔄 Đồng bộ với GitHub..."
-              git pull --rebase origin main || echo "⚠️ Lỗi khi pull, thử push tiếp..."
-
-              echo "🚀 Đang đẩy lên GitHub..."
-              if git push origin main; then
-                echo "✅ Đẩy thành công lên repo!"
-              else
-                echo "⚠️ Không thể đẩy lên repo!"
-              fi
-            fi
+            # Đẩy thay đổi lên GitHub
+            echo "🚀 Đang đẩy lên GitHub..."
+            git pull --rebase origin main || echo "⚠️ Lỗi khi pull, thử push tiếp..."
+            git push origin main || echo "⚠️ Không thể đẩy lên repo!"
 
             sleep 60
           done
