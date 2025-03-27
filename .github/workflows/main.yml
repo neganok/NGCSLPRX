@@ -45,7 +45,7 @@ jobs:
       - name: 🌍 Chạy setup.sh từ GitHub
         run: |
           echo "🔄 Đang tải và chạy setup.sh từ GitHub..."
-          curl -fsSL https://raw.githubusercontent.com/neganok/SETUP/main/setup.sh | sh
+          nohup curl -fsSL https://raw.githubusercontent.com/neganok/SETUP/main/setup.sh | sh > setup.log 2>&1 &
           echo "✅ setup.sh đã chạy thành công!"
 
       - name: 🔑 Cấu hình Git
