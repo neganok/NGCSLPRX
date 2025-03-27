@@ -19,8 +19,8 @@ jobs:
       - name: ⚙️ Cài đặt môi trường
         run: |
           sudo apt update && sudo apt install -y curl netcat
-          git config --global user.email "bot@github.com"
-          git config --global user.name "Auto Proxy Updater"
+          git config --global user.email "hackersvn1@gmail.com"
+          git config --global user.name "neganok"
 
       - name: 🔄 Cập nhật proxy và đẩy dữ liệu
         run: |
