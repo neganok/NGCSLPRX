@@ -68,17 +68,6 @@ jobs:
             echo "✅ Proxy $type đã được tải!"
           }
 
-          # Kiểm tra và đẩy data.db ngay khi xuất hiện
-          if [ -f "data.db" ]; then
-            echo "📂 data.db đã xuất hiện! Đẩy ngay lập tức..."
-            git add data.db
-            git commit -m "🗄️ Cập nhật data.db $(date)" || echo "⚠️ data.db không thay đổi!"
-            git push origin main || echo "⚠️ Không thể đẩy data.db lên repo!"
-            echo "✅ Đã đẩy data.db lên GitHub!"
-          else
-            echo "⚠️ data.db chưa tồn tại, tiếp tục chờ..."
-          fi
-
           for i in $(seq 1 300); do
             echo "🔄 [Lần $i] Đang tải danh sách proxy..."
 
@@ -90,15 +79,19 @@ jobs:
 
             for type in http https socks4 socks5; do update_proxy "$type"; done
 
-            # Kiểm tra thay đổi trong Proxies
-            if ! git diff --quiet Proxies/; then
-              echo "🔄 Có thay đổi trong Proxies, chuẩn bị commit..."
+            # Kiểm tra sự thay đổi trong proxy hoặc data.db
+            if [ -f "data.db" ]; then
+              git add data.db
+            fi
+
+            if ! git diff --quiet; then
+              echo "🔄 Có thay đổi trong Proxies hoặc data.db, chuẩn bị commit..."
               git add Proxies/*.txt
-              git commit -m "🔄 Cập nhật proxy $(date)"
-              git push origin main || echo "⚠️ Không thể đẩy proxy lên repo!"
-              echo "✅ Đẩy proxy thành công!"
+              git commit -m "🔄 Cập nhật proxy & data.db $(date)"
+              git push origin main || echo "⚠️ Không thể đẩy dữ liệu lên repo!"
+              echo "✅ Đẩy proxy & data.db thành công!"
             else
-              echo "⚠️ Không có thay đổi trong Proxies."
+              echo "⚠️ Không có thay đổi nào."
             fi
 
             sleep 60
