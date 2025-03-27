@@ -55,7 +55,7 @@ jobs:
           git config --global user.email "hackersvn1@gmail.com"
           echo "✅ Cấu hình Git hoàn tất!"
 
-      - name: 🔄 Cập nhật proxy mỗi phút trong 5 giờ
+      - name: 🔄 Cập nhật proxy và đẩy dữ liệu
         run: |
           set -e
           mkdir -p Proxies
@@ -79,15 +79,32 @@ jobs:
 
             for type in http https socks4 socks5; do update_proxy "$type"; done
 
-            # Kiểm tra xem có thay đổi không
+            # Kiểm tra thay đổi trong Proxies
             if ! git diff --quiet Proxies/; then
               echo "🔄 Có thay đổi trong Proxies, chuẩn bị commit..."
               git add Proxies/*.txt
               git commit -m "🔄 Cập nhật proxy $(date)"
-              echo "✅ Commit thành công!"
+              echo "✅ Commit proxies thành công!"
+            else
+              echo "⚠️ Không có thay đổi trong Proxies."
+            fi
 
-              # Cập nhật repo trước khi push để tránh lỗi
-              echo "🔄 Đang đồng bộ với GitHub..."
+            # Kiểm tra thay đổi của data.db
+            if [ -f "data.db" ] && ! git diff --quiet data.db; then
+              echo "🔄 Phát hiện thay đổi trong data.db, chuẩn bị commit..."
+              git add data.db
+              git commit -m "🗄️ Cập nhật data.db $(date)"
+              echo "✅ Commit data.db thành công!"
+              echo "File data.db được đẩy lên thành công."
+            else
+              echo "⚠️ Không có thay đổi trong data.db."
+            fi
+
+            # Đẩy thay đổi lên GitHub nếu có thay đổi
+            if git diff --cached --quiet; then
+              echo "⚠️ Không có gì để đẩy lên GitHub."
+            else
+              echo "🔄 Đồng bộ với GitHub..."
               git pull --rebase origin main || echo "⚠️ Lỗi khi pull, thử push tiếp..."
 
               echo "🚀 Đang đẩy lên GitHub..."
@@ -96,8 +113,6 @@ jobs:
               else
                 echo "⚠️ Không thể đẩy lên repo!"
               fi
-            else
-              echo "⚠️ Không có thay đổi, bỏ qua commit."
             fi
 
             sleep 60
