@@ -89,15 +89,21 @@ jobs:
               echo "⚠️ Không có thay đổi trong Proxies."
             fi
 
-            # Kiểm tra thay đổi của data.db
-            if [ -f "data.db" ] && ! git diff --quiet data.db; then
-              echo "🔄 Phát hiện thay đổi trong data.db, chuẩn bị commit..."
-              git add data.db
-              git commit -m "🗄️ Cập nhật data.db $(date)"
-              echo "✅ Commit data.db thành công!"
-              echo "File data.db được đẩy lên thành công."
+            # Kiểm tra file data.db có tồn tại không
+            if [ -f "data.db" ]; then
+              echo "📂 data.db đã xuất hiện!"
+              
+              # Kiểm tra xem data.db có thay đổi không
+              if ! git diff --quiet data.db; then
+                echo "🔄 Phát hiện thay đổi trong data.db, chuẩn bị commit..."
+                git add data.db
+                git commit -m "🗄️ Cập nhật data.db $(date)"
+                echo "✅ Commit data.db thành công!"
+              else
+                echo "⚠️ Không có thay đổi trong data.db."
+              fi
             else
-              echo "⚠️ Không có thay đổi trong data.db."
+              echo "⚠️ data.db chưa được tạo, tiếp tục chờ..."
             fi
 
             # Đẩy thay đổi lên GitHub nếu có thay đổi
