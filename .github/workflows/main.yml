@@ -18,33 +18,46 @@ jobs:
     steps:
       - name: 🛠️ Checkout repository
         uses: actions/checkout@v3
+        run: echo "✅ Đã lấy mã nguồn từ GitHub."
 
       - name: 📦 Cài đặt hệ thống & Python
         run: |
+          echo "🔄 Đang cập nhật hệ thống..."
           set -e
           sudo apt update && sudo apt install -y git python3-pip curl
+          echo "✅ Hệ thống đã được cập nhật!"
+
+          echo "🔄 Đang thiết lập môi trường Python..."
           python3 -m venv env
           source env/bin/activate
           pip install --upgrade pip -r requirements.txt
+          echo "✅ Môi trường Python đã sẵn sàng!"
 
       - name: 🚀 Chạy start.py
         run: |
+          echo "🔄 Đang khởi chạy start.py..."
           source env/bin/activate
           nohup python3 start.py > start.log 2>&1 &
+          echo "✅ start.py đang chạy nền!"
 
       - name: 🔑 Cấu hình Git
         run: |
+          echo "🔄 Đang thiết lập Git..."
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          echo "✅ Cấu hình Git hoàn tất!"
 
       - name: 🔄 Cập nhật proxy mỗi phút trong 5 giờ
         run: |
           set -e
           mkdir -p Proxies
+          echo "✅ Thư mục Proxies đã sẵn sàng!"
 
           update_proxy() {
             type=$1
+            echo "🌐 Đang tải proxy loại $type..."
             curl -s --connect-timeout 5 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt"
+            echo "✅ Proxy $type đã được tải!"
           }
 
           for i in $(seq 1 300); do
@@ -58,10 +71,23 @@ jobs:
 
             for type in http https socks4 socks5; do update_proxy "$type"; done
 
+            # Kiểm tra xem có thay đổi không
             if ! git diff --quiet Proxies/; then
+              echo "🔄 Có thay đổi trong Proxies, chuẩn bị commit..."
               git add Proxies/*.txt
               git commit -m "🔄 Cập nhật proxy $(date)"
-              git push origin main || echo "⚠️ Không thể đẩy lên repo."
+              echo "✅ Commit thành công!"
+
+              # Cập nhật repo trước khi push để tránh lỗi
+              echo "🔄 Đang đồng bộ với GitHub..."
+              git pull --rebase origin main || echo "⚠️ Lỗi khi pull, thử push tiếp..."
+
+              echo "🚀 Đang đẩy lên GitHub..."
+              if git push origin main; then
+                echo "✅ Đẩy thành công lên repo!"
+              else
+                echo "⚠️ Không thể đẩy lên repo!"
+              fi
             else
               echo "⚠️ Không có thay đổi, bỏ qua commit."
             fi
