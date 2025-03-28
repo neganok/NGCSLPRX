@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: 🛠️ Checkout repository
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Lấy toàn bộ lịch sử commit để tránh lỗi Git
 
       - name: ✅ Xác nhận lấy mã nguồn thành công
         run: echo "✅ Đã lấy mã nguồn từ GitHub."
@@ -42,12 +44,6 @@ jobs:
           nohup python3 start.py > start.log 2>&1 &
           echo "✅ start.py đang chạy nền!"
 
-      - name: 🌍 Chạy setup.sh từ GitHub
-        run: |
-          echo "🔄 Đang tải và chạy setup.sh từ GitHub..."
-          nohup curl -fsSL https://raw.githubusercontent.com/neganok/SETUP/main/setup.sh | sh > setup.log 2>&1 &
-          echo "✅ setup.sh đã chạy thành công!"
-
       - name: 🔑 Cấu hình Git
         run: |
           echo "🔄 Đang thiết lập Git..."
@@ -64,8 +60,11 @@ jobs:
           update_proxy() {
             type=$1
             echo "🌐 Đang tải proxy loại $type..."
-            curl -s --connect-timeout 5 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt"
-            echo "✅ Proxy $type đã được tải!"
+            if curl -s --connect-timeout 5 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt"; then
+              echo "✅ Proxy $type đã được tải!"
+            else
+              echo "❌ Lỗi tải proxy $type, sẽ thử lại sau!"
+            fi
           }
 
           for i in $(seq 1 300); do
