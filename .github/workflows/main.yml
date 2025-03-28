@@ -19,21 +19,18 @@ jobs:
       - name: 🛠️ Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Lấy toàn bộ lịch sử commit
+          fetch-depth: 0  # Lấy toàn bộ lịch sử commit để tránh lỗi Git
 
-      - name: 🛠️ Kiểm tra & khôi phục Git nếu bị lỗi
+      - name: 🛠️ Kiểm tra và khắc phục lỗi Git
         run: |
           echo "🔍 Kiểm tra lỗi Git..."
           if ! git fsck --full; then
-            echo "⚠️ Phát hiện lỗi Git, đang khôi phục..."
-            rm -rf .git
-            git init
-            git remote add origin https://github.com/${{ github.repository }}.git
-            git fetch origin main
-            git reset --hard origin/main
-            echo "✅ Git đã được khôi phục!"
+            echo "⚠️ Phát hiện lỗi trong repository. Đang khắc phục..."
+            git gc --prune=now
+            git repack -a -d
+            echo "✅ Đã khắc phục lỗi Git!"
           else
-            echo "✅ Không có lỗi Git!"
+            echo "✅ Repository không có lỗi!"
           fi
 
       - name: 📦 Cài đặt hệ thống & Python
@@ -60,7 +57,6 @@ jobs:
           echo "🔄 Đang thiết lập Git..."
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          git remote set-url origin https://github.com/${{ github.repository }}.git
           echo "✅ Cấu hình Git hoàn tất!"
 
       - name: 🔄 Cập nhật proxy và đẩy dữ liệu
@@ -100,8 +96,12 @@ jobs:
               git add Proxies/*.txt
 
               # Kiểm tra lỗi Git trước khi commit
-              git fsck --full || git gc --prune=now
-              git repack -a -d
+              if ! git fsck --full; then
+                echo "⚠️ Phát hiện lỗi trong repository. Đang khắc phục..."
+                git gc --prune=now
+                git repack -a -d
+                echo "✅ Đã khắc phục lỗi Git!"
+              fi
 
               git commit -m "🔄 Cập nhật proxy & data.db $(date)"
               git push origin main || (echo "⚠️ Không thể đẩy dữ liệu lên repo! Thử lại sau." && sleep 10 && git push origin main)
