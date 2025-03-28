@@ -51,6 +51,13 @@ jobs:
           git config --global user.email "hackersvn1@gmail.com"
           echo "✅ Cấu hình Git hoàn tất!"
 
+      - name: 🛠️ Kiểm tra & sửa lỗi Git trước khi đẩy dữ liệu
+        run: |
+          echo "🔄 Kiểm tra lỗi Git..."
+          git fsck --full || git gc --prune=now
+          git repack -a -d
+          echo "✅ Git đã được sửa chữa!"
+
       - name: 🔄 Cập nhật proxy và đẩy dữ liệu
         run: |
           set -e
@@ -86,8 +93,13 @@ jobs:
             if ! git diff --quiet; then
               echo "🔄 Có thay đổi trong Proxies hoặc data.db, chuẩn bị commit..."
               git add Proxies/*.txt
+              
+              # Kiểm tra lỗi Git trước khi commit
+              git fsck --full || git gc --prune=now
+              git repack -a -d
+
               git commit -m "🔄 Cập nhật proxy & data.db $(date)"
-              git push origin main || echo "⚠️ Không thể đẩy dữ liệu lên repo!"
+              git push origin main || (echo "⚠️ Không thể đẩy dữ liệu lên repo! Thử lại sau." && sleep 10 && git push origin main)
               echo "✅ Đẩy proxy & data.db thành công!"
             else
               echo "⚠️ Không có thay đổi nào."
