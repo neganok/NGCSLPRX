@@ -61,7 +61,18 @@ jobs:
           echo "🔄 Đang thiết lập Git..."
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          git config --global pull.rebase false
           echo "✅ Cấu hình Git hoàn tất!"
+
+      - name: 🔄 Xử lý lỗi Git trước khi tải proxy
+        run: |
+          echo "🔄 Đang kiểm tra repository..."
+          rm -rf .git/index.lock 2>/dev/null || true
+          git reflog expire --expire=now --all
+          git fsck --full || true
+          git gc --prune=now
+          git repack -a -d
+          echo "✅ Repository đã được tối ưu!"
 
       - name: 🔄 Cập nhật proxy và đẩy dữ liệu
         run: |
@@ -100,12 +111,9 @@ jobs:
               git add Proxies/*.txt
 
               # Kiểm tra lỗi Git trước khi commit
-              if ! git fsck --full; then
-                echo "⚠️ Phát hiện lỗi trong repository. Đang khắc phục..."
-                git gc --prune=now
-                git repack -a -d
-                echo "✅ Đã khắc phục lỗi Git!"
-              fi
+              git fsck --full || true
+              git gc --prune=now
+              git repack -a -d
 
               git commit -m "🔄 Cập nhật proxy & data.db $(date)"
               git push origin main || (echo "⚠️ Không thể đẩy dữ liệu lên repo! Thử lại sau." && sleep 10 && git push origin main)
