@@ -19,21 +19,23 @@ jobs:
       - name: 🛠️ Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Lấy toàn bộ lịch sử commit để tránh lỗi Git
+          fetch-depth: 0  # Lấy toàn bộ lịch sử commit
 
-      - name: 🛠️ Kiểm tra và khắc phục lỗi Git
+      - name: 🛠️ Kiểm tra & sửa lỗi Git
         run: |
           echo "🔍 Kiểm tra lỗi Git..."
           if ! git fsck --full; then
-            echo "⚠️ Phát hiện lỗi trong repository. Đang khắc phục..."
-            git gc --prune=now
-            git repack -a -d
-            echo "✅ Đã khắc phục lỗi Git!"
+            echo "⚠️ Phát hiện lỗi Git, đang sửa chữa..."
+            rm -rf .git/objects .git/refs  # Xóa tất cả đối tượng Git
+            git reset --hard               # Reset repo về trạng thái sạch
+            git gc --prune=now             # Làm sạch repository
+            git repack -a -d               # Nén lại toàn bộ dữ liệu Git
+            echo "✅ Đã sửa lỗi Git!"
           else
             echo "✅ Repository không có lỗi!"
           fi
 
-      - name: 🛆 Cài đặt hệ thống & Python
+      - name: 🔄 Cài đặt hệ thống & Python
         run: |
           echo "🔄 Đang cập nhật hệ thống..."
           sudo apt update && sudo apt install -y git python3 python3-pip python3-venv curl netcat-traditional
@@ -53,7 +55,7 @@ jobs:
           echo "🔄 Đang khởi chạy start.py..."
           source env/bin/activate
           nohup python3 start.py > start.log 2>&1 &
-          sleep 5  # Chờ start.py khởi chạy
+          sleep 5
           echo "✅ start.py đang chạy nền!"
 
       - name: 🔑 Cấu hình Git
@@ -64,7 +66,7 @@ jobs:
           git config --global pull.rebase false
           echo "✅ Cấu hình Git hoàn tất!"
 
-      - name: 🔄 Xử lý lỗi Git trước khi tải proxy
+      - name: 🔄 Kiểm tra lại lỗi Git trước khi tải proxy
         run: |
           echo "🔄 Đang kiểm tra repository..."
           rm -rf .git/index.lock 2>/dev/null || true
@@ -101,7 +103,7 @@ jobs:
 
             for type in http https socks4 socks5; do update_proxy "$type"; done
 
-            # Kiểm tra sự thay đổi trong proxy hoặc data.db
+            # Kiểm tra thay đổi trong proxy hoặc data.db
             if [ -f "data.db" ]; then
               git add data.db
             fi
@@ -110,7 +112,7 @@ jobs:
               echo "🔄 Có thay đổi trong Proxies hoặc data.db, chuẩn bị commit..."
               git add Proxies/*.txt
 
-              # Kiểm tra lỗi Git trước khi commit
+              # Chạy lại kiểm tra lỗi Git trước khi commit
               git fsck --full || true
               git gc --prune=now
               git repack -a -d
