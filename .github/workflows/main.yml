@@ -19,15 +19,26 @@ jobs:
       - name: 🛠️ Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Lấy toàn bộ lịch sử commit để tránh lỗi Git
+          fetch-depth: 0  # Lấy toàn bộ lịch sử commit
 
-      - name: ✅ Xác nhận lấy mã nguồn thành công
-        run: echo "✅ Đã lấy mã nguồn từ GitHub."
+      - name: 🛠️ Kiểm tra & khôi phục Git nếu bị lỗi
+        run: |
+          echo "🔍 Kiểm tra lỗi Git..."
+          if ! git fsck --full; then
+            echo "⚠️ Phát hiện lỗi Git, đang khôi phục..."
+            rm -rf .git
+            git init
+            git remote add origin https://github.com/${{ github.repository }}.git
+            git fetch origin main
+            git reset --hard origin/main
+            echo "✅ Git đã được khôi phục!"
+          else
+            echo "✅ Không có lỗi Git!"
+          fi
 
       - name: 📦 Cài đặt hệ thống & Python
         run: |
           echo "🔄 Đang cập nhật hệ thống..."
-          set -e
           sudo apt update && sudo apt install -y git python3-pip curl netcat-traditional
           echo "✅ Hệ thống đã được cập nhật!"
 
@@ -50,15 +61,6 @@ jobs:
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           echo "✅ Cấu hình Git hoàn tất!"
-
-      - name: 🛠️ Kiểm tra & sửa lỗi Git trước khi đẩy dữ liệu
-        run: |
-          echo "🔄 Kiểm tra lỗi Git..."
-          git fsck --full || git gc --prune=now
-          git repack -a -d
-          git reflog expire --expire=now --all
-          git fsck --full || echo "⚠️ Git vẫn có lỗi!"
-          echo "✅ Git đã được kiểm tra và sửa chữa!"
 
       - name: 🔄 Cập nhật proxy và đẩy dữ liệu
         run: |
@@ -95,11 +97,10 @@ jobs:
             if ! git diff --quiet; then
               echo "🔄 Có thay đổi trong Proxies hoặc data.db, chuẩn bị commit..."
               git add Proxies/*.txt
-              
+
               # Kiểm tra lỗi Git trước khi commit
               git fsck --full || git gc --prune=now
               git repack -a -d
-              git reflog expire --expire=now --all
 
               git commit -m "🔄 Cập nhật proxy & data.db $(date)"
               git push origin main || (echo "⚠️ Không thể đẩy dữ liệu lên repo! Thử lại sau." && sleep 10 && git push origin main)
