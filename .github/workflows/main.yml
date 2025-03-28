@@ -21,8 +21,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: 🛠️ Kiểm tra & sửa lỗi Git
+      - name: 🚑 Kiểm tra & sửa lỗi Git (tránh lỗi fatal)
         run: |
+          set +e
           echo "🔍 Kiểm tra lỗi Git..."
           if ! git fsck --full; then
             echo "⚠️ Phát hiện lỗi Git, reset toàn bộ..."
@@ -63,6 +64,8 @@ jobs:
 
       - name: 🔄 Kiểm tra & sửa lỗi Git trước khi tải proxy
         run: |
+          set +e
+          echo "🛠️ Đang kiểm tra Git..."
           rm -rf .git/index.lock 2>/dev/null || true
           git reflog expire --expire=now --all
           git fsck --full || true
@@ -102,6 +105,8 @@ jobs:
               git gc --prune=now
               git repack -a -d
               git commit -m "🔄 Cập nhật proxy & data.db $(date)"
+
+              # 🔥 Thử lại push nếu gặp lỗi
               for attempt in {1..5}; do
                 if git push origin main; then
                   echo "✅ Đẩy proxy & data.db thành công!"
