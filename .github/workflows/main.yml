@@ -25,11 +25,14 @@ jobs:
         run: |
           echo "🔍 Kiểm tra lỗi Git..."
           if ! git fsck --full; then
-            echo "⚠️ Phát hiện lỗi Git, đang sửa chữa..."
-            rm -rf .git/objects .git/refs  # Xóa tất cả đối tượng Git
-            git reset --hard               # Reset repo về trạng thái sạch
-            git gc --prune=now             # Làm sạch repository
-            git repack -a -d               # Nén lại toàn bộ dữ liệu Git
+            echo "⚠️ Phát hiện lỗi Git, reset toàn bộ..."
+            rm -rf .git
+            git init
+            git remote add origin https://github.com/${{ github.repository }}.git
+            git fetch origin
+            git reset --hard origin/main
+            git gc --prune=now
+            git repack -a -d
             echo "✅ Đã sửa lỗi Git!"
           else
             echo "✅ Repository không có lỗi!"
@@ -66,7 +69,7 @@ jobs:
           git config --global pull.rebase false
           echo "✅ Cấu hình Git hoàn tất!"
 
-      - name: 🔄 Kiểm tra lại lỗi Git trước khi tải proxy
+      - name: 🔄 Kiểm tra & sửa lỗi Git trước khi tải proxy
         run: |
           echo "🔄 Đang kiểm tra repository..."
           rm -rf .git/index.lock 2>/dev/null || true
@@ -118,8 +121,17 @@ jobs:
               git repack -a -d
 
               git commit -m "🔄 Cập nhật proxy & data.db $(date)"
-              git push origin main || (echo "⚠️ Không thể đẩy dữ liệu lên repo! Thử lại sau." && sleep 10 && git push origin main)
-              echo "✅ Đẩy proxy & data.db thành công!"
+
+              # Thử đẩy nhiều lần nếu lỗi
+              for attempt in {1..5}; do
+                if git push origin main; then
+                  echo "✅ Đẩy proxy & data.db thành công!"
+                  break
+                else
+                  echo "⚠️ Lỗi push, thử lại lần $attempt..."
+                  sleep 10
+                fi
+              done
             else
               echo "⚠️ Không có thay đổi nào."
             fi
