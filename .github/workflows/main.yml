@@ -60,6 +60,7 @@ jobs:
           echo "🔄 Đang thiết lập Git..."
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          git remote set-url origin https://github.com/${{ github.repository }}.git
           echo "✅ Cấu hình Git hoàn tất!"
 
       - name: 🔄 Cập nhật proxy và đẩy dữ liệu
