@@ -16,7 +16,7 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ Checkout repository (Ultra Safe Mode)
+      - name: 🛠️ Checkout repository
         uses: actions/checkout@v3
         with:
           fetch-depth: 1
@@ -55,15 +55,12 @@ jobs:
             return 1
           }
 
-          # Hàm tải proxy cực kỳ ổn định
+          # Hàm tải proxy
           download_proxy() {
             local type=$1
-            local tmpfile="Proxies/${type}.tmp"
-            
             for i in {1..3}; do
-              if curl -s --connect-timeout 15 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "$tmpfile" && 
-                 [ -s "$tmpfile" ]; then
-                mv "$tmpfile" "Proxies/${type}.txt"
+              if curl -s --connect-timeout 15 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt" && 
+                 [ -s "Proxies/${type}.txt" ]; then
                 return 0
               fi
               sleep 5
@@ -71,28 +68,21 @@ jobs:
             return 1
           }
 
-          # Hàm đồng bộ Git không lỗi
-          safe_git_sync() {
-            # Tạo workspace mới hoàn toàn
-            git init
-            git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
-            git config user.name "neganok"
-            git config user.email "hackersvn1@gmail.com"
+          # Hàm push dữ liệu
+          git_push_data() {
+            git config --global user.name "neganok"
+            git config --global user.email "hackersvn1@gmail.com"
             
-            # Kéo dữ liệu mới nhất
-            git fetch origin main --depth=1
-            git reset --hard FETCH_HEAD
+            # Kiểm tra thay đổi
+            git add Proxies/ data.db 2>/dev/null || true
             
-            # Copy dữ liệu cần thiết
-            mkdir -p Proxies
-            cp -r $GITHUB_WORKSPACE/Proxies/* Proxies/ || true
-            [ -f "$GITHUB_WORKSPACE/data.db" ] && cp "$GITHUB_WORKSPACE/data.db" . || true
-            
-            # Commit và push
-            git add -A
             if ! git diff --cached --quiet; then
-              git commit -m "🔄 Proxy update $(date +'%Y-%m-%d %H:%M:%S')"
+              git commit -m "🔄 Update proxies & data.db $(date +'%Y-%m-%d %H:%M:%S')"
+              git pull origin main
               git push origin main
+              echo "✅ Đã push dữ liệu lên repository"
+            else
+              echo "ℹ️ Không có thay đổi để push"
             fi
           }
 
@@ -113,13 +103,14 @@ jobs:
                 echo "✅ $type: Thành công"
               else
                 echo "⚠️ $type: Thất bại"
+                rm -f "Proxies/${type}.txt" 2>/dev/null || true
               fi
             done
 
-            # Đồng bộ Git mỗi 3 chu kỳ
+            # Push dữ liệu mỗi 3 chu kỳ
             if (( cycle % 3 == 0 )); then
               echo "💾 Đang đồng bộ dữ liệu..."
-              safe_git_sync || echo "⚠️ Đồng bộ thất bại, tiếp tục chu kỳ sau"
+              git_push_data || echo "⚠️ Đồng bộ thất bại, sẽ thử lại sau"
             fi
             
             sleep 60
