@@ -23,10 +23,10 @@ jobs:
 
       - name: 🚑 Kiểm tra & sửa lỗi Git (tránh lỗi fatal)
         run: |
-          set +e
+          set -e
           echo "🔍 Kiểm tra lỗi Git..."
           if ! git fsck --full; then
-            echo "⚠️ Phát hiện lỗi Git, reset toàn bộ..."
+            echo "⚠️ Lỗi Git phát hiện, làm sạch repository..."
             rm -rf .git
             git init
             git remote add origin https://github.com/${{ github.repository }}.git
@@ -36,7 +36,7 @@ jobs:
             git repack -a -d
             echo "✅ Đã sửa lỗi Git!"
           else
-            echo "✅ Repository không có lỗi!"
+            echo "✅ Không có lỗi trong repository."
           fi
 
       - name: 🔄 Cài đặt hệ thống & Python
@@ -64,8 +64,8 @@ jobs:
 
       - name: 🔄 Kiểm tra & sửa lỗi Git trước khi tải proxy
         run: |
-          set +e
-          echo "🛠️ Đang kiểm tra Git..."
+          set -e
+          echo "🛠️ Kiểm tra Git..."
           rm -rf .git/index.lock 2>/dev/null || true
           git reflog expire --expire=now --all
           git fsck --full || true
@@ -76,6 +76,7 @@ jobs:
         run: |
           set -e
           mkdir -p Proxies
+
           update_proxy() {
             type=$1
             echo "🌐 Đang tải proxy loại $type..."
@@ -87,12 +88,13 @@ jobs:
           }
 
           for i in $(seq 1 300); do
-            echo "🔄 [Lần $i] Đang tải danh sách proxy..."
+            echo "🔄 [Lần $i] Kiểm tra proxy server..."
             if ! nc -z 127.0.0.1 8000; then
-              echo "❌ Proxy chưa chạy, chờ 1 phút..."
-              sleep 60
+              echo "❌ Proxy chưa chạy, chờ 30 giây..."
+              sleep 30
               continue
             fi
+
             for type in http https socks4 socks5; do update_proxy "$type"; done
 
             if [ -f "data.db" ]; then
