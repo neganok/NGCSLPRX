@@ -16,89 +16,110 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ Checkout repository (Safe Mode)
+      - name: 🛠️ Checkout repository (Ultra Safe Mode)
         uses: actions/checkout@v3
         with:
-          fetch-depth: 1  # Giảm depth để tránh lỗi object
+          fetch-depth: 1
           clean: true
 
       - name: 🔄 Cài đặt hệ thống
         run: |
           sudo apt update && sudo apt install -y python3 python3-pip python3-venv curl netcat-traditional
 
-      - name: 🏰️ Thiết lập môi trường
+      - name: 🏰️ Thiết lập Virtual Environment
         run: |
           python3 -m venv env
           source env/bin/activate
           pip install --upgrade pip
           test -f requirements.txt && pip install -r requirements.txt
 
-      - name: 🚀 Khởi động proxy
+      - name: 🚀 Khởi động proxy server
         run: |
           source env/bin/activate
           nohup python3 start.py > start.log 2>&1 &
-          sleep 20  # Tăng thời gian chờ khởi động
+          sleep 15
 
-      - name: 🔄 Proxy Update Engine
+      - name: 🔄 Proxy Update System
         run: |
           set -e
           mkdir -p Proxies
-          
-          # Hàm kiểm tra kết nối proxy server
-          check_proxy_server() {
+
+          # Hàm kiểm tra proxy server
+          check_proxy() {
             for i in {1..10}; do
               if nc -z -w 5 127.0.0.1 8000; then
                 return 0
               fi
               sleep 10
-              echo "⌛ Đợi proxy server... ($i/10)"
             done
-            echo "❌ Proxy server không phản hồi sau 10 lần thử"
             return 1
           }
 
-          # Hàm tải proxy đơn giản
+          # Hàm tải proxy cực kỳ ổn định
           download_proxy() {
-            curl -s --connect-timeout 15 --retry 2 "http://127.0.0.1:8000/proxy/$1?time=2&minutes=10&format=text" -o "Proxies/$1.txt"
+            local type=$1
+            local tmpfile="Proxies/${type}.tmp"
+            
+            for i in {1..3}; do
+              if curl -s --connect-timeout 15 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "$tmpfile" && 
+                 [ -s "$tmpfile" ]; then
+                mv "$tmpfile" "Proxies/${type}.txt"
+                return 0
+              fi
+              sleep 5
+            done
+            return 1
           }
 
-          # Hàm đồng bộ Git cực kỳ đơn giản
-          git_sync() {
-            git config --global user.name "neganok"
-            git config --global user.email "hackersvn1@gmail.com"
+          # Hàm đồng bộ Git không lỗi
+          safe_git_sync() {
+            # Tạo workspace mới hoàn toàn
+            git init
+            git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+            git config user.name "neganok"
+            git config user.email "hackersvn1@gmail.com"
             
-            # Tạo commit mới hoàn toàn
-            git checkout --orphan temp_branch
+            # Kéo dữ liệu mới nhất
+            git fetch origin main --depth=1
+            git reset --hard FETCH_HEAD
+            
+            # Copy dữ liệu cần thiết
+            mkdir -p Proxies
+            cp -r $GITHUB_WORKSPACE/Proxies/* Proxies/ || true
+            [ -f "$GITHUB_WORKSPACE/data.db" ] && cp "$GITHUB_WORKSPACE/data.db" . || true
+            
+            # Commit và push
             git add -A
-            git commit -m "🔄 Proxy update $(date +'%Y%m%d-%H%M%S')"
-            
-            # Force push để tránh mọi xung đột
-            git branch -D main
-            git branch -m main
-            git push -f origin main
+            if ! git diff --cached --quiet; then
+              git commit -m "🔄 Proxy update $(date +'%Y-%m-%d %H:%M:%S')"
+              git push origin main
+            fi
           }
 
-          # Main workflow
+          # Main loop
           for cycle in {1..300}; do
-            echo "🔄 Cycle $cycle"
+            echo "🔄 Cycle $cycle/300"
             
             # Kiểm tra proxy server
-            check_proxy_server || continue
-            
-            # Tải các loại proxy
+            if ! check_proxy; then
+              echo "❌ Proxy server không khả dụng"
+              sleep 30
+              continue
+            fi
+
+            # Tải các proxy
             for type in http https socks4 socks5; do
-              if download_proxy "$type" && [ -s "Proxies/$type.txt" ]; then
-                echo "✅ $type: OK"
+              if download_proxy "$type"; then
+                echo "✅ $type: Thành công"
               else
-                echo "⚠️ $type: Failed"
-                rm -f "Proxies/$type.txt"
+                echo "⚠️ $type: Thất bại"
               fi
             done
 
-            # Đồng bộ với Git mỗi 5 chu kỳ
-            if (( cycle % 5 == 0 )); then
+            # Đồng bộ Git mỗi 3 chu kỳ
+            if (( cycle % 3 == 0 )); then
               echo "💾 Đang đồng bộ dữ liệu..."
-              git_sync || echo "⚠️ Đồng bộ thất bại, tiếp tục chu kỳ sau"
+              safe_git_sync || echo "⚠️ Đồng bộ thất bại, tiếp tục chu kỳ sau"
             fi
             
             sleep 60
