@@ -16,132 +16,64 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ Checkout repository (Force Refresh)
+      - name: 🛠️ Checkout
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
-          clean: true
+          fetch-depth: 1
           persist-credentials: true
 
-      - name: 🔄 Cài đặt hệ thống
+      - name: 🔄 Install
         run: |
           sudo apt update && sudo apt install -y python3 python3-pip python3-venv curl netcat-traditional
-
-      - name: 🏰️ Thiết lập môi trường
-        run: |
           python3 -m venv env
           source env/bin/activate
-          pip install --upgrade pip
-          test -f requirements.txt && pip install -r requirements.txt
+          pip install -r requirements.txt 2>/dev/null || true
 
-      - name: 🚀 Khởi động proxy (Guaranteed)
+      - name: 🚀 Start Proxy
         run: |
           source env/bin/activate
           pkill -f "python3 start.py" || true
           nohup python3 start.py > start.log 2>&1 &
-          sleep 25
+          sleep 20
 
-      - name: 🔑 Cấu hình Git (Strict)
+      - name: 🔄 Update Proxies
         run: |
-          git config --global user.name "neganok"
-          git config --global user.email "hackersvn1@gmail.com"
-          git config --global init.defaultBranch main
-          git config --global pull.rebase false
-          git config --global core.autocrlf false
-
-      - name: 🔄 Proxy & Data Sync (100% Working)
-        run: |
-          set -ex
+          set -e
           mkdir -p Proxies
-
-          # Hàm tải proxy đảm bảo
-          download_proxy() {
-            local type=$1
-            rm -f "Proxies/${type}.txt" 2>/dev/null || true
-            
-            for i in {1..5}; do
-              if curl -s --connect-timeout 25 --retry 3 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.tmp" && 
-                 [ -s "Proxies/${type}.tmp" ]; then
-                mv "Proxies/${type}.tmp" "Proxies/${type}.txt"
-                echo "✅ [$type] Tải thành công"
-                return 0
+          
+          # Download proxies
+          for type in http https socks4 socks5; do
+            for i in {1..3}; do
+              if curl -s --connect-timeout 20 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt" && [ -s "Proxies/${type}.txt" ]; then
+                echo "✅ Downloaded $type"
+                break
               fi
-              sleep 10
+              sleep 5
             done
-            echo "❌ [$type] Thất bại sau 5 lần"
-            return 1
-          }
-
-          # Hàm đồng bộ chắc chắn
-          force_push() {
-            # Đảm bảo workspace sạch
-            git reset --hard
-            git clean -fd
-            
-            # Thêm file proxy và data.db
-            find Proxies -type f -name "*.txt" -size +0 | xargs git add 2>/dev/null || true
-            [ -f "data.db" ] && git add data.db || true
-            
-            # Kiểm tra thay đổi thực sự
-            if git diff --cached --quiet; then
-              echo "ℹ️ Không có thay đổi thực sự"
-              return 0
-            fi
-
-            # Tạo commit mới
-            git commit -m "🔄 Proxy Update $(date +'%Y-%m-%d %H:%M:%S')"
-            
-            # Đồng bộ với remote
-            for i in {1..5}; do
-              git fetch origin
-              if git pull origin main --allow-unrelated-histories; then
-                if git push origin main; then
-                  echo "🚀 Đã push thành công"
-                  return 0
-                fi
-              fi
-              echo "⚠️ Lỗi đồng bộ (lần $i/5), đang reset..."
-              git reset --hard origin/main
-              git clean -fd
-              sleep 15
-            done
-            
-            echo "❌ Không thể đồng bộ sau 5 lần"
-            return 1
-          }
-
-          # Vòng lặp chính
-          for cycle in {1..300}; do
-            echo "🔄 CHU KỲ $cycle/300 [$(date +'%H:%M:%S')]"
-            
-            # Kiểm tra proxy server
-            if ! nc -z -w 20 127.0.0.1 8000; then
-              echo "❌ Proxy không phản hồi, khởi động lại..."
-              pkill -f "python3 start.py" || true
-              source env/bin/activate
-              nohup python3 start.py > start.log 2>&1 &
-              sleep 30
-              continue
-            fi
-
-            # Tải proxy
-            any_success=false
-            for type in http https socks4 socks5; do
-              if download_proxy "$type"; then
-                any_success=true
-              fi
-            done
-
-            # Đồng bộ nếu có thay đổi
-            if [ "$any_success" = true ] || [ -f "data.db" ]; then
-              force_push || echo "⚠️ Tiếp tục dù đồng bộ thất bại"
-            fi
-            
-            sleep 60
           done
 
-      - name: 🧹 Dọn dẹp (Guaranteed)
-        if: always()
-        run: |
-          pkill -f "python3 start.py" || true
-          rm -f start.log
+          # Git Sync
+          git config --global user.name "neganok"
+          git config --global user.email "hackersvn1@gmail.com"
+          git add Proxies/ data.db 2>/dev/null || true
+          
+          if ! git diff --cached --quiet; then
+            git commit -m "🔄 Update $(date +'%H:%M:%S')"
+            for i in {1..3}; do
+              git pull origin main && git push origin main && break
+              git reset --hard origin/main
+              sleep 10
+            done
+          fi
+
+          # Main Loop
+          for cycle in {1..299}; do
+            sleep 60
+            if nc -z -w 10 127.0.0.1 8000; then
+              for type in http https socks4 socks5; do
+                curl -s --connect-timeout 20 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt" || true
+              done
+              git add Proxies/ data.db 2>/dev/null || true
+              git diff --cached --quiet || git commit -m "🔄 Update $(date +'%H:%M:%S')" && git pull origin main && git push origin main || true
+            fi
+          done
