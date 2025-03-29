@@ -14,3 +14,4 @@
 2025-03-29 10:45:05,113 - INFO - PROXY MACHINE READY! 
 API: http://0.0.0.0:8000 
 http-proxy: http://0.0.0.0:3333 
+2025-03-29 10:52:15,137 - WARNING - Process ['python3', 'checker.py', '-list', '-w', '20', '-t', '3'] terminated. Restarting...
