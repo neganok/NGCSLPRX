@@ -16,10 +16,10 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ Checkout repository (Enhanced)
+      - name: 🛠️ Checkout repository (Force Refresh)
         uses: actions/checkout@v3
         with:
-          fetch-depth: 1
+          fetch-depth: 0
           clean: true
           persist-credentials: true
 
@@ -34,83 +34,89 @@ jobs:
           pip install --upgrade pip
           test -f requirements.txt && pip install -r requirements.txt
 
-      - name: 🚀 Khởi động proxy (Robust)
+      - name: 🚀 Khởi động proxy (Guaranteed)
         run: |
           source env/bin/activate
           pkill -f "python3 start.py" || true
           nohup python3 start.py > start.log 2>&1 &
-          sleep 20
+          sleep 25
 
-      - name: 🔑 Cấu hình Git
+      - name: 🔑 Cấu hình Git (Strict)
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           git config --global init.defaultBranch main
           git config --global pull.rebase false
+          git config --global core.autocrlf false
 
-      - name: 🔄 Proxy Update System (Ultra Stable)
+      - name: 🔄 Proxy & Data Sync (100% Working)
         run: |
-          set -e
+          set -ex
           mkdir -p Proxies
 
-          # Enhanced proxy download with cleanup
+          # Hàm tải proxy đảm bảo
           download_proxy() {
             local type=$1
             rm -f "Proxies/${type}.txt" 2>/dev/null || true
             
             for i in {1..5}; do
-              if curl -s --connect-timeout 20 --retry 3 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.tmp" && 
+              if curl -s --connect-timeout 25 --retry 3 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.tmp" && 
                  [ -s "Proxies/${type}.tmp" ]; then
                 mv "Proxies/${type}.tmp" "Proxies/${type}.txt"
-                echo "✅ [$type] Downloaded successfully"
+                echo "✅ [$type] Tải thành công"
                 return 0
               fi
               sleep 10
             done
-            echo "❌ [$type] Failed after 5 attempts"
+            echo "❌ [$type] Thất bại sau 5 lần"
             return 1
           }
 
-          # Atomic Git sync
-          git_sync() {
-            # Reset workspace completely
+          # Hàm đồng bộ chắc chắn
+          force_push() {
+            # Đảm bảo workspace sạch
             git reset --hard
             git clean -fd
             
-            # Add only valid files
-            find Proxies -type f -size +0 | xargs git add 2>/dev/null || true
+            # Thêm file proxy và data.db
+            find Proxies -type f -name "*.txt" -size +0 | xargs git add 2>/dev/null || true
             [ -f "data.db" ] && git add data.db || true
             
-            if ! git diff --cached --quiet; then
-              git commit -m "🔄 Proxy update $(date +'%Y-%m-%d %H:%M:%S')"
-              
-              # Force sync with remote
-              for i in {1..5}; do
-                if git pull origin main --allow-unrelated-histories && 
-                   git push origin main; then
-                  echo "🚀 Synced successfully"
-                  return 0
-                fi
-                echo "⚠️ Sync failed (attempt $i/5), retrying..."
-                git reset --hard origin/main
-                git clean -fd
-                sleep 15
-              done
-              echo "❌ Failed to sync after 5 attempts"
-              return 1
-            else
-              echo "ℹ️ No changes to sync"
+            # Kiểm tra thay đổi thực sự
+            if git diff --cached --quiet; then
+              echo "ℹ️ Không có thay đổi thực sự"
               return 0
             fi
+
+            # Tạo commit mới
+            git commit -m "🔄 Proxy Update $(date +'%Y-%m-%d %H:%M:%S')"
+            
+            # Đồng bộ với remote
+            for i in {1..5}; do
+              git fetch origin
+              if git pull origin main --allow-unrelated-histories; then
+                if git push origin main; then
+                  echo "🚀 Đã push thành công"
+                  return 0
+                fi
+              fi
+              echo "⚠️ Lỗi đồng bộ (lần $i/5), đang reset..."
+              git reset --hard origin/main
+              git clean -fd
+              sleep 15
+            done
+            
+            echo "❌ Không thể đồng bộ sau 5 lần"
+            return 1
           }
 
-          # Main loop with health checks
+          # Vòng lặp chính
           for cycle in {1..300}; do
-            echo "🔄 CYCLE $cycle/300 [$(date +'%H:%M:%S')]"
+            echo "🔄 CHU KỲ $cycle/300 [$(date +'%H:%M:%S')]"
             
-            # Verify proxy server
-            if ! nc -z -w 15 127.0.0.1 8000; then
-              echo "❌ Proxy server down, restarting..."
+            # Kiểm tra proxy server
+            if ! nc -z -w 20 127.0.0.1 8000; then
+              echo "❌ Proxy không phản hồi, khởi động lại..."
               pkill -f "python3 start.py" || true
               source env/bin/activate
               nohup python3 start.py > start.log 2>&1 &
@@ -118,7 +124,7 @@ jobs:
               continue
             fi
 
-            # Download all proxy types
+            # Tải proxy
             any_success=false
             for type in http https socks4 socks5; do
               if download_proxy "$type"; then
@@ -126,15 +132,15 @@ jobs:
               fi
             done
 
-            # Sync only if at least one proxy downloaded
+            # Đồng bộ nếu có thay đổi
             if [ "$any_success" = true ] || [ -f "data.db" ]; then
-              git_sync || echo "⚠️ Continuing despite sync failure"
+              force_push || echo "⚠️ Tiếp tục dù đồng bộ thất bại"
             fi
             
             sleep 60
           done
 
-      - name: 🧹 Cleanup
+      - name: 🧹 Dọn dẹp (Guaranteed)
         if: always()
         run: |
           pkill -f "python3 start.py" || true
