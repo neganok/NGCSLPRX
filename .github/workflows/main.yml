@@ -1,4 +1,4 @@
-name: Proxy Updater
+name: Proxy Master
 
 on:
   schedule:
@@ -12,13 +12,13 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ Setup
+      - name: 🔄 Setup
         uses: actions/checkout@v3
         with:
           fetch-depth: 1
           persist-credentials: true
 
-      - name: 🚀 Start
+      - name: 🚀 Start Services
         run: |
           sudo apt update && sudo apt install -y python3 python3-venv curl
           python3 -m venv env
@@ -26,48 +26,58 @@ jobs:
           nohup python3 start.py > start.log 2>&1 &
           sleep 20
 
-      - name: 🔄 Update
+      - name: 🔥 Update & Push
         run: |
-          set -e
+          set -ex
           mkdir -p Proxies
           push_count=0
 
-          # Hàm push cực kỳ ổn định
-          safe_push() {
-            git config --global user.name "neganok"
-            git config --global user.email "hackersvn1@gmail.com"
-            
-            # Reset hoàn toàn bộ
-            git reset --hard
-            git clean -fd
+          # Hàm push tất cả dữ liệu
+          push_all() {
+            echo "=== DEBUG START ==="
             
             # Tải proxies
             for t in http https socks4 socks5; do
-              curl -s --connect-timeout 30 "http://127.0.0.1:8000/proxy/$t?time=2&minutes=10&format=text" -o "Proxies/$t.txt" || true
+              if ! curl -m 30 "http://127.0.0.1:8000/proxy/$t?time=2&minutes=10&format=text" -o "Proxies/$t.txt"; then
+                echo "⚠️ Lỗi tải $t"
+                rm -f "Proxies/$t.txt"
+              fi
             done
 
-            # Chỉ add file có dữ liệu
-            find Proxies -type f -size +0 | xargs git add 2>/dev/null || true
-            [ -f "data.db" ] && git add data.db 2>/dev/null || true
+            # Kiểm tra file
+            echo "📂 Files:"
+            ls -lh Proxies/
+            [ -f "data.db" ] && ls -lh data.db || echo "No data.db"
 
-            if ! git diff --cached --quiet; then
-              if git commit -m "📌 Update $(date +'%H:%M')" && 
-                 git pull origin main --quiet && 
-                 git push origin main --quiet; then
-                echo "🔼 Đã push thành công (lần $((++push_count)))"
-                return 0
-              fi
-              echo "❌ Push thất bại"
+            # Git operations
+            git config --global user.name "neganok"
+            git config --global user.email "hackersvn1@gmail.com"
+            
+            git add Proxies/ data.db 2>/dev/null || true
+            
+            if git diff --cached --quiet; then
+              echo "🔄 Không có thay đổi"
+              return 0
+            fi
+
+            git commit -m "📦 Update $(date +'%H:%M')"
+            if git pull origin main && git push origin main; then
+              echo "✅ PUSH THÀNH CÔNG (lần $((++push_count)))"
+              echo "=== DEBUG END ==="
+              return 0
+            else
+              echo "❌ PUSH THẤT BẠI"
+              git reset --hard origin/main
+              echo "=== DEBUG END ==="
               return 1
             fi
-            return 0
           }
 
           # Lần đầu
-          safe_push
+          push_all
 
-          # Lặp lại mỗi phút
+          # Lặp mỗi phút
           for i in {1..299}; do
             sleep 60
-            safe_push || true
+            nc -z 127.0.0.1 8000 && push_all || echo "🛑 Proxy không hoạt động"
           done
