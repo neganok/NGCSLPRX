@@ -7,7 +7,7 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: '0 */5 * * *'  # Chạy mỗi 5 giờ
+    - cron: '0 */5 * * *'  # Runs every 5 hours
 
 permissions:
   contents: write
@@ -16,115 +16,145 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ Checkout repository
+      - name: 🛠️ Checkout repository (safe mode)
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          persist-credentials: false
+          clean: false  # Preserve existing files to avoid corruption
 
-      - name: 🚑 Sửa lỗi Git repository
+      - name: 🚑 Git repository repair & maintenance
         run: |
           set -e
-          echo "🔍 Đang kiểm tra và sửa chữa Git repository..."
-          git config --global advice.detachedHead false
+          echo "🔧 Performing deep Git repository maintenance..."
+          
+          # Reset and clean working tree
+          git reset --hard HEAD
+          git clean -fdX
+          
+          # Advanced repository repair
           git config --global gc.auto 0
-          
-          # Làm sạch repository hoàn toàn
-          git reset --hard
-          git clean -fdx
-          
-          # Sửa chữa các vấn đề về object
-          git fsck --full --strict || true
+          git config --global gc.autoDetach false
+          git fsck --full --strict --no-progress || true
           git reflog expire --expire=now --all
-          git gc --prune=now
-          git repack -a -d --window=250 --depth=250
+          git gc --prune=now --aggressive
+          git repack -a -d -f --window=250 --depth=250
+          
+          echo "✅ Git repository optimized and repaired"
 
-      - name: 🔄 Cài đặt hệ thống & Python
+      - name: 🔄 System & Python setup
         run: |
           sudo apt update && sudo apt install -y git python3 python3-pip python3-venv curl netcat-traditional
 
-      - name: 🏰️ Thiết lập Virtual Environment
+      - name: 🏰️ Python Virtual Environment
         run: |
           python3 -m venv env
           source env/bin/activate
-          pip install --upgrade pip
+          pip install --upgrade pip wheel
           test -f requirements.txt && pip install -r requirements.txt
 
-      - name: 🚀 Chạy start.py
+      - name: 🚀 Start proxy server
         run: |
           source env/bin/activate
           nohup python3 start.py > start.log 2>&1 &
-          sleep 5
+          echo "Waiting for proxy server to initialize..."
+          sleep 15  # Increased initialization time
 
-      - name: 🔑 Cấu hình Git
+      - name: 🔑 Git configuration
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           git config --global pull.rebase false
           git config --global gc.auto 0
 
-      - name: 🔄 Chuẩn bị repository trước khi cập nhật
+      - name: 🔄 Pre-update Git verification
         run: |
           set -e
-          echo "🛠️ Đang chuẩn bị repository..."
-          rm -rf .git/index.lock 2>/dev/null || true
-          git reset --hard
-          git clean -fdx
-          git fetch --all --force
-          git pull origin main --force
+          echo "🔍 Verifying Git integrity before update..."
+          git fsck --full --strict --no-progress || true
+          git remote update --prune
+          git pull origin main --ff-only
+          git reset --hard origin/main
 
-      - name: 🔄 Cập nhật proxy và đẩy dữ liệu
+      - name: 🔄 Proxy update and data push
         run: |
           set -e
           mkdir -p Proxies
-
+          
+          # Enhanced proxy update function with retries
           update_proxy() {
-            type=$1
-            echo "🌐 Đang tải proxy loại $type..."
-            if curl -s --connect-timeout 5 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt"; then
-              echo "✅ Proxy $type đã được tải!"
-              git add "Proxies/${type}.txt"
-            else
-              echo "❌ Lỗi tải proxy $type, sẽ thử lại sau!"
-            fi
+            local type=$1
+            local attempts=3
+            local delay=5
+            
+            echo "🌐 Downloading $type proxies..."
+            for ((i=1; i<=attempts; i++)); do
+              if curl -s --connect-timeout 10 --retry 2 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt"; then
+                if [ -s "Proxies/${type}.txt" ]; then
+                  echo "✅ Successfully downloaded $type proxies"
+                  git add "Proxies/${type}.txt"
+                  return 0
+                else
+                  echo "⚠️ Empty response for $type, attempt $i/$attempts"
+                fi
+              else
+                echo "⚠️ Failed to download $type proxies, attempt $i/$attempts"
+              fi
+              sleep $delay
+            done
+            echo "❌ Failed to download $type proxies after $attempts attempts"
+            return 1
           }
 
+          # Main update loop
           for i in $(seq 1 300); do
-            echo "🔄 [Lần $i] Kiểm tra proxy server..."
-            if ! nc -z 127.0.0.1 8000; then
-              echo "❌ Proxy chưa chạy, chờ 30 giây..."
+            echo "🔄 [Cycle $i/300] Checking proxy server status..."
+            
+            # Enhanced server check
+            if ! nc -z -w 10 127.0.0.1 8000; then
+              echo "❌ Proxy server not ready, waiting 30 seconds..."
               sleep 30
               continue
             fi
 
-            # Cập nhật tất cả các loại proxy
-            for type in http https socks4 socks5; do update_proxy "$type"; done
+            # Update all proxy types
+            for type in http https socks4 socks5; do
+              update_proxy "$type" || true
+            done
 
-            # Thêm data.db nếu tồn tại
+            # Handle data.db if exists
             if [ -f "data.db" ]; then
               git add data.db
             fi
 
-            # Kiểm tra thay đổi và commit
+            # Commit and push if changes exist
             if ! git diff --cached --quiet; then
-              echo "📝 Đang tạo commit..."
-              git commit -m "🔄 Cập nhật proxy & data.db $(date +'%Y-%m-%d %H:%M:%S')" || true
+              echo "📦 Preparing to commit changes..."
               
-              # Thử push với retry logic
+              # Atomic commit and push with retries
               for attempt in {1..5}; do
-                echo "🚀 Đang thử push (lần $attempt)..."
+                git commit -m "🔄 Proxy & data update [$(date +'%Y-%m-%d %H:%M:%S')]" || continue
+                
                 if git pull --rebase origin main && git push origin main; then
-                  echo "✅ Đẩy proxy & data.db thành công!"
+                  echo "✅ Successfully pushed updates!"
                   break
                 else
-                  echo "⚠️ Lỗi push, thử lại lần $attempt..."
+                  echo "⚠️ Push failed (attempt $attempt/5), resetting..."
                   git reset --hard origin/main
-                  git clean -fdx
+                  git clean -fd
                   sleep 10
                 fi
               done
             else
-              echo "⚠️ Không có thay đổi nào."
+              echo "ℹ️ No changes detected"
             fi
-            sleep 60
+            
+            sleep 60  # Wait before next cycle
           done
+
+      - name: � Post-run cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up resources..."
+          pkill -f "python3 start.py" || true
+          rm -f start.log
+          git gc --prune=now
