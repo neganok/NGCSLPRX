@@ -40,40 +40,37 @@ jobs:
         run: |
           set -e
           mkdir -p Proxies
+          push_count=0
           
-          # Download proxies
-          for type in http https socks4 socks5; do
-            for i in {1..3}; do
-              if curl -s --connect-timeout 20 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt" && [ -s "Proxies/${type}.txt" ]; then
-                echo "✅ Downloaded $type"
-                break
+          # Hàm push tối giản
+          simple_push() {
+            git add Proxies/ data.db 2>/dev/null || true
+            if ! git diff --cached --quiet; then
+              git commit -m "🔄 Proxy update $(date +'%H:%M')" >/dev/null 2>&1
+              if git pull --quiet origin main && git push --quiet origin main; then
+                echo "🔼 Push thành công (lần $((++push_count)))"
+                return 0
               fi
-              sleep 5
-            done
+              git reset --hard origin/main >/dev/null 2>&1
+              echo "❌ Push thất bại"
+              return 1
+            fi
+            return 0
+          }
+
+          # Lần đầu
+          for type in http https socks4 socks5; do
+            curl -s --connect-timeout 20 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt" || true
           done
+          simple_push
 
-          # Git Sync
-          git config --global user.name "neganok"
-          git config --global user.email "hackersvn1@gmail.com"
-          git add Proxies/ data.db 2>/dev/null || true
-          
-          if ! git diff --cached --quiet; then
-            git commit -m "🔄 Update $(date +'%H:%M:%S')"
-            for i in {1..3}; do
-              git pull origin main && git push origin main && break
-              git reset --hard origin/main
-              sleep 10
-            done
-          fi
-
-          # Main Loop
+          # Vòng lặp chính
           for cycle in {1..299}; do
             sleep 60
-            if nc -z -w 10 127.0.0.1 8000; then
+            if nc -z -w 5 127.0.0.1 8000; then
               for type in http https socks4 socks5; do
                 curl -s --connect-timeout 20 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt" || true
               done
-              git add Proxies/ data.db 2>/dev/null || true
-              git diff --cached --quiet || git commit -m "🔄 Update $(date +'%H:%M:%S')" && git pull origin main && git push origin main || true
+              simple_push
             fi
           done
