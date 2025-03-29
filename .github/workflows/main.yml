@@ -7,7 +7,7 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: '0 */5 * * *'  # Chạy mỗi 5 giờ
+    - cron: '0 */5 * * *'
 
 permissions:
   contents: write
@@ -22,126 +22,108 @@ jobs:
           fetch-depth: 0
           clean: true
 
-      - name: 🚑 Sửa lỗi Git (nâng cấp)
+      - name: 🔄 Cài đặt hệ thống
         run: |
-          set -e
-          echo "🔍 Bắt đầu kiểm tra Git repository..."
-          
-          # Tạm thời tắt auto GC
-          git config --global gc.auto 0
-          
-          # Kiểm tra và sửa chữa repository
-          if ! git fsck --full --strict --no-progress; then
-            echo "⚠️ Phát hiện lỗi, đang sửa chữa..."
-            git reflog expire --expire=now --all
-            git gc --prune=now
-            git repack -a -d -f --window=250 --depth=250
-            echo "✅ Đã sửa chữa repository"
-          else
-            echo "✅ Repository ổn định"
-          fi
+          sudo apt update && sudo apt install -y python3 python3-pip python3-venv curl netcat-traditional
 
-      - name: 🔄 Cài đặt hệ thống & Python
-        run: |
-          sudo apt update && sudo apt install -y git python3 python3-pip python3-venv curl netcat-traditional
-
-      - name: 🏰️ Thiết lập Virtual Environment
+      - name: 🏰️ Thiết lập môi trường
         run: |
           python3 -m venv env
           source env/bin/activate
           pip install --upgrade pip
           test -f requirements.txt && pip install -r requirements.txt
 
-      - name: 🚀 Chạy start.py
+      - name: 🚀 Khởi động proxy
         run: |
           source env/bin/activate
           nohup python3 start.py > start.log 2>&1 &
-          sleep 10  # Tăng thời gian chờ
+          sleep 15
 
       - name: 🔑 Cấu hình Git
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           git config --global pull.rebase false
-          git config --global gc.auto 0
 
-      - name: 🔄 Chuẩn bị trước khi cập nhật
-        run: |
-          set -e
-          echo "🔄 Đang đồng bộ với remote..."
-          git fetch origin
-          git reset --hard origin/main
-          git clean -fd
-
-      - name: 🔄 Cập nhật proxy và đẩy dữ liệu
+      - name: 🔄 Cập nhật proxy (ổn định)
         run: |
           set -e
           mkdir -p Proxies
-
-          # Hàm tải proxy với retry
-          update_proxy() {
+          
+          # Hàm tải proxy với retry và kiểm tra
+          safe_proxy_download() {
             local type=$1
-            local attempts=3
-            local delay=5
+            local max_retries=3
+            local timeout=10
             
-            for ((i=1; i<=attempts; i++)); do
-              echo "🌐 [$i/$attempts] Đang tải proxy $type..."
-              if curl -s --connect-timeout 10 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt" && [ -s "Proxies/${type}.txt" ]; then
-                echo "✅ Tải thành công proxy $type"
+            for ((i=1; i<=max_retries; i++)); do
+              if curl -s --connect-timeout $timeout "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.tmp" && 
+                 [ -s "Proxies/${type}.tmp" ]; then
+                mv "Proxies/${type}.tmp" "Proxies/${type}.txt"
+                echo "✅ [$type] Tải thành công (lần $i)"
                 return 0
               fi
-              sleep $delay
+              echo "⚠️ [$type] Lỗi lần $i, chờ 5s..."
+              sleep 5
             done
-            echo "❌ Không thể tải proxy $type sau $attempts lần thử"
+            echo "❌ [$type] Không thể tải sau $max_retries lần"
+            return 1
+          }
+
+          # Hàm push an toàn
+          safe_git_push() {
+            local max_attempts=3
+            local attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              git fetch origin
+              git reset --hard origin/main
+              
+              if git diff --quiet && git diff --cached --quiet; then
+                echo "ℹ️ Không có thay đổi để push"
+                return 0
+              fi
+              
+              git add -A
+              git commit -m "🔄 Auto-update $(date +'%Y-%m-%d %H:%M:%S')" || true
+              
+              if git pull origin main --no-rebase && git push origin main; then
+                echo "✅ Push thành công!"
+                return 0
+              else
+                echo "⚠️ Push thất bại lần $attempt, đang reset..."
+                git reset --hard HEAD~1 || true
+                git clean -fd
+                sleep 10
+                ((attempt++))
+              fi
+            done
+            
+            echo "❌ Không thể push sau $max_attempts lần"
             return 1
           }
 
           # Vòng lặp chính
-          for i in $(seq 1 300); do
-            echo "🔄 [Lần $i/300] Kiểm tra proxy server..."
+          for cycle in $(seq 1 300); do
+            echo "🔄 Chu kỳ $cycle/300"
             
-            # Kiểm tra server
+            # Kiểm tra proxy server
             if ! nc -z -w 10 127.0.0.1 8000; then
               echo "❌ Proxy chưa sẵn sàng, chờ 30s..."
               sleep 30
               continue
             fi
 
-            # Tải các loại proxy
-            for type in http https socks4 socks5; do
-              if update_proxy "$type"; then
-                git add "Proxies/${type}.txt"
-              fi
+            # Tải tất cả proxy
+            for proxy_type in http https socks4 socks5; do
+              safe_proxy_download $proxy_type || continue
             done
 
-            # Xử lý data.db
+            # Xử lý data.db nếu có
             [ -f "data.db" ] && git add data.db
 
-            # Commit và push nếu có thay đổi
-            if ! git diff --cached --quiet; then
-              echo "📦 Đang tạo commit..."
-              git commit -m "🔄 Cập nhật proxy & data.db $(date +'%Y-%m-%d %H:%M:%S')" || true
-              
-              # Push với retry
-              for attempt in {1..5}; do
-                if git pull --rebase origin main && git push origin main; then
-                  echo "✅ Đẩy thành công!"
-                  break
-                else
-                  echo "⚠️ Lỗi push ($attempt/5), đang reset..."
-                  git reset --hard origin/main
-                  sleep 10
-                fi
-              done
-            else
-              echo "ℹ️ Không có thay đổi"
-            fi
+            # Đồng bộ với Git
+            safe_git_push || true
             
             sleep 60
           done
-
-      - name: 🧹 Dọn dẹp sau khi chạy
-        if: always()
-        run: |
-          pkill -f "python3 start.py" || true
-          git gc --prune=now
