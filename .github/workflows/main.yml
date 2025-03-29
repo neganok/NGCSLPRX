@@ -1,57 +1,62 @@
-name: Setup Proxy Machine
+name: Proxy Updater
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
   schedule:
     - cron: '0 */5 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  setup:
+  update:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ Checkout
+      - name: 🛠️ Setup
         uses: actions/checkout@v3
         with:
           fetch-depth: 1
           persist-credentials: true
 
-      - name: 🔄 Install
+      - name: 🚀 Start
         run: |
-          sudo apt update && sudo apt install -y python3 python3-pip python3-venv curl netcat-traditional
+          sudo apt update && sudo apt install -y python3 python3-venv curl
           python3 -m venv env
           source env/bin/activate
-          pip install -r requirements.txt 2>/dev/null || true
-
-      - name: 🚀 Start Proxy
-        run: |
-          source env/bin/activate
-          pkill -f "python3 start.py" || true
           nohup python3 start.py > start.log 2>&1 &
           sleep 20
 
-      - name: 🔄 Update Proxies
+      - name: 🔄 Update
         run: |
           set -e
           mkdir -p Proxies
           push_count=0
-          
-          # Hàm push tối giản
-          simple_push() {
-            git add Proxies/ data.db 2>/dev/null || true
+
+          # Hàm push cực kỳ ổn định
+          safe_push() {
+            git config --global user.name "neganok"
+            git config --global user.email "hackersvn1@gmail.com"
+            
+            # Reset hoàn toàn bộ
+            git reset --hard
+            git clean -fd
+            
+            # Tải proxies
+            for t in http https socks4 socks5; do
+              curl -s --connect-timeout 30 "http://127.0.0.1:8000/proxy/$t?time=2&minutes=10&format=text" -o "Proxies/$t.txt" || true
+            done
+
+            # Chỉ add file có dữ liệu
+            find Proxies -type f -size +0 | xargs git add 2>/dev/null || true
+            [ -f "data.db" ] && git add data.db 2>/dev/null || true
+
             if ! git diff --cached --quiet; then
-              git commit -m "🔄 Proxy update $(date +'%H:%M')" >/dev/null 2>&1
-              if git pull --quiet origin main && git push --quiet origin main; then
-                echo "🔼 Push thành công (lần $((++push_count)))"
+              if git commit -m "📌 Update $(date +'%H:%M')" && 
+                 git pull origin main --quiet && 
+                 git push origin main --quiet; then
+                echo "🔼 Đã push thành công (lần $((++push_count)))"
                 return 0
               fi
-              git reset --hard origin/main >/dev/null 2>&1
               echo "❌ Push thất bại"
               return 1
             fi
@@ -59,18 +64,10 @@ jobs:
           }
 
           # Lần đầu
-          for type in http https socks4 socks5; do
-            curl -s --connect-timeout 20 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt" || true
-          done
-          simple_push
+          safe_push
 
-          # Vòng lặp chính
-          for cycle in {1..299}; do
+          # Lặp lại mỗi phút
+          for i in {1..299}; do
             sleep 60
-            if nc -z -w 5 127.0.0.1 8000; then
-              for type in http https socks4 socks5; do
-                curl -s --connect-timeout 20 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt" || true
-              done
-              simple_push
-            fi
+            safe_push || true
           done
