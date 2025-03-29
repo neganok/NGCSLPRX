@@ -7,7 +7,7 @@ on:
     branches: [main]
   workflow_dispatch:
   schedule:
-    - cron: '0 */5 * * *'
+    - cron: '0 */5 * * *'  # Runs every 5 hours
 
 permissions:
   contents: write
@@ -16,102 +16,119 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ Checkout repository
+      - name: 🛠️ Checkout repository (Safe Mode)
         uses: actions/checkout@v3
         with:
-          fetch-depth: 1
+          fetch-depth: 1  # Shallow clone to avoid object issues
           clean: true
 
-      - name: 🔄 Cài đặt hệ thống
+      - name: 🔄 System & Python setup
         run: |
           sudo apt update && sudo apt install -y python3 python3-pip python3-venv curl netcat-traditional
 
-      - name: 🏰️ Thiết lập Virtual Environment
+      - name: 🏰️ Python Virtual Environment
         run: |
           python3 -m venv env
           source env/bin/activate
           pip install --upgrade pip
           test -f requirements.txt && pip install -r requirements.txt
 
-      - name: 🚀 Khởi động proxy server
+      - name: 🚀 Start proxy server
         run: |
           source env/bin/activate
           nohup python3 start.py > start.log 2>&1 &
-          sleep 15
+          sleep 15  # Increased initialization time
 
-      - name: 🔄 Proxy Update System
+      - name: 🔑 Git configuration
+        run: |
+          git config --global user.name "neganok"
+          git config --global user.email "hackersvn1@gmail.com"
+          git config --global pull.rebase false
+
+      - name: 🔄 Proxy Update Engine
         run: |
           set -e
           mkdir -p Proxies
-
-          # Hàm kiểm tra proxy server
-          check_proxy() {
-            for i in {1..10}; do
-              if nc -z -w 5 127.0.0.1 8000; then
-                return 0
-              fi
-              sleep 10
-            done
-            return 1
-          }
-
-          # Hàm tải proxy
+          
+          # Stable proxy download function
           download_proxy() {
             local type=$1
-            for i in {1..3}; do
-              if curl -s --connect-timeout 15 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "Proxies/${type}.txt" && 
-                 [ -s "Proxies/${type}.txt" ]; then
+            local tmp_file="Proxies/${type}.tmp"
+            
+            for attempt in {1..3}; do
+              if curl -s --connect-timeout 15 "http://127.0.0.1:8000/proxy/${type}?time=2&minutes=10&format=text" -o "$tmp_file" && 
+                 [ -s "$tmp_file" ]; then
+                mv "$tmp_file" "Proxies/${type}.txt"
+                echo "✅ Successfully downloaded $type proxies"
                 return 0
               fi
               sleep 5
             done
+            echo "❌ Failed to download $type proxies after 3 attempts"
             return 1
           }
 
-          # Hàm push dữ liệu
-          git_push_data() {
-            git config --global user.name "neganok"
-            git config --global user.email "hackersvn1@gmail.com"
+          # Atomic Git synchronization
+          git_sync() {
+            # Create fresh working directory
+            temp_dir=$(mktemp -d)
+            cd $temp_dir
             
-            # Kiểm tra thay đổi
-            git add Proxies/ data.db 2>/dev/null || true
+            git init
+            git remote add origin "https://github.com/$GITHUB_REPOSITORY.git"
+            git config user.name "neganok"
+            git config user.email "hackersvn1@gmail.com"
             
+            # Fetch latest changes
+            git fetch origin main --depth=1
+            git reset --hard FETCH_HEAD
+            
+            # Copy updated files
+            mkdir -p Proxies
+            cp -r $GITHUB_WORKSPACE/Proxies/* Proxies/ 2>/dev/null || true
+            [ -f "$GITHUB_WORKSPACE/data.db" ] && cp "$GITHUB_WORKSPACE/data.db" . || true
+            
+            # Commit and push if changes exist
+            git add -A
             if ! git diff --cached --quiet; then
-              git commit -m "🔄 Update proxies & data.db $(date +'%Y-%m-%d %H:%M:%S')"
-              git pull origin main
+              git commit -m "🔄 Proxy update $(date +'%Y-%m-%d %H:%M:%S')"
               git push origin main
-              echo "✅ Đã push dữ liệu lên repository"
+              echo "✅ Successfully pushed updates"
             else
-              echo "ℹ️ Không có thay đổi để push"
+              echo "ℹ️ No changes to push"
             fi
+            
+            # Cleanup
+            cd $GITHUB_WORKSPACE
+            rm -rf $temp_dir
           }
 
-          # Main loop
+          # Main update loop
           for cycle in {1..300}; do
-            echo "🔄 Cycle $cycle/300"
+            echo "🔄 [Cycle $cycle/300] Starting update process..."
             
-            # Kiểm tra proxy server
-            if ! check_proxy; then
-              echo "❌ Proxy server không khả dụng"
+            # Check proxy server status
+            if ! nc -z -w 10 127.0.0.1 8000; then
+              echo "❌ Proxy server not ready, waiting 30 seconds..."
               sleep 30
               continue
             fi
 
-            # Tải các proxy
-            for type in http https socks4 socks5; do
-              if download_proxy "$type"; then
-                echo "✅ $type: Thành công"
-              else
-                echo "⚠️ $type: Thất bại"
-                rm -f "Proxies/${type}.txt" 2>/dev/null || true
-              fi
+            # Download all proxy types
+            for proxy_type in http https socks4 socks5; do
+              download_proxy $proxy_type || true
             done
 
-            # Push dữ liệu mỗi 3 chu kỳ
+            # Sync with GitHub every 3 cycles
             if (( cycle % 3 == 0 )); then
-              echo "💾 Đang đồng bộ dữ liệu..."
-              git_push_data || echo "⚠️ Đồng bộ thất bại, sẽ thử lại sau"
+              echo "💾 Synchronizing with repository..."
+              git_sync || echo "⚠️ Sync failed, will retry next cycle"
             fi
             
             sleep 60
           done
+
+      - name: 🧹 Cleanup
+        if: always()
+        run: |
+          pkill -f "python3 start.py" || true
