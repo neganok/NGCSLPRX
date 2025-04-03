@@ -151,11 +151,10 @@ def get_proxies():
             logging.debug(f"Error fetching proxies from API: {e}")
 
         additional_sources = [
-            f"https://www.proxy-list.download/api/v1/get?type={proxy_type}",
-            f"https://github.com/mmpx12/proxy-list/blob/master/{proxy_type}.txt",
-            f"https://github.com/ErcinDedeoglu/proxies/blob/main/proxies/{proxy_type}.txt",
-            f"http://pubproxy.com/api/proxy?limit=5&format=txt?type={proxy_type}",
-            f"https://github.com/Anonym0usWork1221/Free-Proxies/blob/main/proxy_files/{proxy_type}_proxies.txt",
+            f"https://api.proxyscrape.com/?request=displayproxies&country=all&ssl=all&anonymity=all&timeout=1000&protocol={proxy_type}",
+            f"https://api.proxyscrape.com/v2/?request=displayproxies&country=all&ssl=all&anonymity=all&timeout=1000&protocol={proxy_type}",
+            f"https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&country=all&timeout=1000&country=all&ssl=all&anonymity=all&protocol={proxy_type}",
+            f"https://api.proxyscrape.com/v4/free-proxy-list/get?request=display_proxies&country=all&proxy_format=ipport&format=text&timeout=1000&protocol={proxy_type}",
         ]
 
         ip_port_pattern = re.compile(r'^\d{1,3}(\.\d{1,3}){3}:\d+$')
