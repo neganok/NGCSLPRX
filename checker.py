@@ -149,6 +149,13 @@ def check_proxy(proxy, proxy_type):
                 return None
             else:
                 logging.info(f"Successful proxy: {proxy_host}:{proxy_port} with response time {response_time:.2f}s")
+                # Immediately insert valid proxy into database
+                with closing(get_db_connection()) as conn:
+                    c = conn.cursor()
+                    rounded_resp_time = round(response_time, 2)
+                    c.execute(f'''INSERT OR REPLACE INTO {proxy_type} (proxy, response_time, last_checked) VALUES (?, ?, ?)''', 
+                              (f'{proxy_host}:{proxy_port}', rounded_resp_time, current_time))
+                    conn.commit()
                 return f'{proxy_host}:{proxy_port}', response_time, current_time
         
         elif proxy_type in ['socks4', 'socks5']:
@@ -166,6 +173,13 @@ def check_proxy(proxy, proxy_type):
                     return None
                 else:
                     logging.info(f"Successful proxy: {proxy_host}:{proxy_port} with response time {response_time:.2f}s")
+                    # Immediately insert valid proxy into database
+                    with closing(get_db_connection()) as conn:
+                        c = conn.cursor()
+                        rounded_resp_time = round(response_time, 2)
+                        c.execute(f'''INSERT OR REPLACE INTO {proxy_type} (proxy, response_time, last_checked) VALUES (?, ?, ?)''', 
+                                  (f'{proxy_host}:{proxy_port}', rounded_resp_time, current_time))
+                        conn.commit()
                     return f'{proxy_host}:{proxy_port}', response_time, current_time
     
     except (NewConnectionError, SSLError, ProxyError, ConnectTimeoutError, ReadTimeoutError) as e:
@@ -200,128 +214,130 @@ def add_sources(start_page=1, end_page=200, num_threads=10):
                 logging.error(f"Error in future for page {future_to_page[future]}: {e}")
     return all_results
 
-if __name__ == '__main__':
-    data_written = False
-    ip_ports = set()
-    
-    if args.url:
-        try:
-            response = requests.get(args.url)
-            new_proxies = set(response.text.splitlines())
-            ip_ports.update(new_proxies)
-        except Exception as e:
-            logging.error(f"Error fetching proxies from URL {args.url}: {e}")
-    
-    if args.s:
-        ip_ports.update(args.s)
-    
-    if args.targets:
-        try:
-            with open('targets.txt', 'r') as file:
-                ip_ports.update(file.read().splitlines())
-        except Exception as e:
-            logging.error(f"Error reading targets.txt: {e}")
-    
-    if args.list:
-        logging.info('Getting targets...')
-        ip_ports.update(add_sources())
-        try:
-            urls = load_urls_from_file('urls.txt')
-            for url in urls:
-                try:
-                    response = requests.get(url)
-                    if response.status_code == 200:
-                        new_proxies = set(response.text.splitlines())
-                        ip_ports.update(new_proxies)
-                except Exception as e:
-                    logging.error(f"Error fetching proxies from URL {url}: {e}")
-        except Exception as e:
-            logging.error(f"Error loading URLs from urls.txt: {e}")
+def main_loop():
+    while True:
+        data_written = False
+        ip_ports = set()
+        
+        if args.url:
+            try:
+                response = requests.get(args.url)
+                new_proxies = set(response.text.splitlines())
+                ip_ports.update(new_proxies)
+            except Exception as e:
+                logging.error(f"Error fetching proxies from URL {args.url}: {e}")
+        
+        if args.s:
+            ip_ports.update(args.s)
+        
+        if args.targets:
+            try:
+                with open('targets.txt', 'r') as file:
+                    ip_ports.update(file.read().splitlines())
+            except Exception as e:
+                logging.error(f"Error reading targets.txt: {e}")
+        
+        if args.list:
+            logging.info('Getting targets...')
+            ip_ports.update(add_sources())
+            try:
+                urls = load_urls_from_file('urls.txt')
+                for url in urls:
+                    try:
+                        response = requests.get(url)
+                        if response.status_code == 200:
+                            new_proxies = set(response.text.splitlines())
+                            ip_ports.update(new_proxies)
+                    except Exception as e:
+                        logging.error(f"Error fetching proxies from URL {url}: {e}")
+            except Exception as e:
+                logging.error(f"Error loading URLs from urls.txt: {e}")
 
-    if args.mass:
-        try:
-            tree = ET.parse(args.mass)
-            root = tree.getroot()
-            for host in root.findall('host'):
-                ip_address = host.find('address').get('addr')
-                for port in host.findall('ports/port'):
-                    portid = port.get('portid')
-                    if ip_address and portid:
-                        ip_ports.add(f"{ip_address}:{portid}")
-        except Exception as e:
-            logging.error(f"Error parsing masscan XML file {args.mass}: {e}")
-    
-    if args.db:
-        with closing(get_db_connection()) as conn:
-            c = conn.cursor()
-            for proxy_type in proxy_types:
+        if args.mass:
+            try:
+                tree = ET.parse(args.mass)
+                root = tree.getroot()
+                for host in root.findall('host'):
+                    ip_address = host.find('address').get('addr')
+                    for port in host.findall('ports/port'):
+                        portid = port.get('portid')
+                        if ip_address and portid:
+                            ip_ports.add(f"{ip_address}:{portid}")
+            except Exception as e:
+                logging.error(f"Error parsing masscan XML file {args.mass}: {e}")
+        
+        if args.db:
+            with closing(get_db_connection()) as conn:
+                c = conn.cursor()
+                for proxy_type in proxy_types:
+                    c.execute(f'''CREATE TABLE IF NOT EXISTS {proxy_type} (proxy TEXT PRIMARY KEY, response_time REAL, last_checked TEXT)''')
+                    c.execute(f'''SELECT proxy FROM {proxy_type}''')
+                    proxies = c.fetchall()
+                    for proxy in proxies:
+                        ip_ports.add(proxy[0])
+
+        logging.info(f'Total proxies to check: {len(ip_ports)}')
+        
+        for proxy_type in proxy_types:
+            logging.info(f'Checking {proxy_type} proxies...')
+            
+            with closing(get_db_connection()) as conn:
+                c = conn.cursor()
                 c.execute(f'''CREATE TABLE IF NOT EXISTS {proxy_type} (proxy TEXT PRIMARY KEY, response_time REAL, last_checked TEXT)''')
-                c.execute(f'''SELECT proxy FROM {proxy_type}''')
-                proxies = c.fetchall()
-                for proxy in proxies:
-                    ip_ports.add(proxy[0])
-
-    logging.info(f'Total proxies to check: {len(ip_ports)}')
-    
-    for proxy_type in proxy_types:
-        logging.info(f'Checking {proxy_type} proxies...')
-        
-        with closing(get_db_connection()) as conn:
-            c = conn.cursor()
-            c.execute(f'''CREATE TABLE IF NOT EXISTS {proxy_type} (proxy TEXT PRIMARY KEY, response_time REAL, last_checked TEXT)''')
-            conn.commit()
-        
-        checked_proxies = []
-        failed_proxies = []
-
-        with ThreadPoolExecutor(max_workers=args.w) as executor:
-            futures = {executor.submit(check_proxy, p, proxy_type): p for p in ip_ports}
-            for future in as_completed(futures):
-                result = future.result()
-                p = futures[future]
-                if result is not None:
-                    checked_proxies.append(result)
-                else:
-                    failed_proxies.append(p)
-
-        if args.clean:
-            with closing(get_db_connection()) as conn:
-                c = conn.cursor()
-                for p in failed_proxies:
-                    c.execute(f'''DELETE FROM {proxy_type} WHERE proxy = ?''', (p,))
                 conn.commit()
+            
+            checked_proxies = []
+            failed_proxies = []
 
-        if args.scan:
-            with closing(get_db_connection()) as conn:
-                c = conn.cursor()
-                for p in ip_ports:
-                    c.execute(f'''DELETE FROM {'_scan_results'} WHERE ip_port = ?''', (p,))
-                conn.commit()
+            with ThreadPoolExecutor(max_workers=args.w) as executor:
+                futures = {executor.submit(check_proxy, p, proxy_type): p for p in ip_ports}
+                for future in as_completed(futures):
+                    result = future.result()
+                    p = futures[future]
+                    if result is not None:
+                        checked_proxies.append(result)
+                    else:
+                        failed_proxies.append(p)
 
-        all_checked_proxies[proxy_type] = sorted(checked_proxies, key=lambda x: x[1])
- 
-    if args.txt:
-        if not os.path.exists('txt'):
-            os.makedirs('txt')
+            if args.clean:
+                with closing(get_db_connection()) as conn:
+                    c = conn.cursor()
+                    for p in failed_proxies:
+                        c.execute(f'''DELETE FROM {proxy_type} WHERE proxy = ?''', (p,))
+                    conn.commit()
 
-    for proxy_type, checked_proxies in all_checked_proxies.items():
-        proxy_list = []  
+            if args.scan:
+                with closing(get_db_connection()) as conn:
+                    c = conn.cursor()
+                    for p in ip_ports:
+                        c.execute(f'''DELETE FROM {'_scan_results'} WHERE ip_port = ?''', (p,))
+                    conn.commit()
 
-        for checked_proxy in checked_proxies:
-            rounded_resp_time = round(checked_proxy[1], 2)
-            current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            with closing(get_db_connection()) as conn:
-                c = conn.cursor()
-                c.execute(f'''INSERT OR REPLACE INTO {proxy_type} (proxy, response_time, last_checked) VALUES (?, ?, ?)''', (checked_proxy[0], rounded_resp_time, current_time))
-                logging.info(f"{proxy_type} {checked_proxy[0]} {rounded_resp_time} s.")
-                data_written = True
-                conn.commit()
-
-            proxy_list.append(checked_proxy[0])
-
+            all_checked_proxies[proxy_type] = sorted(checked_proxies, key=lambda x: x[1])
+     
         if args.txt:
-            with open(f'txt/{proxy_type}.txt', 'w') as file:
-                file.write('\n'.join(proxy_list))
-                
-    if not data_written:
-        logging.info('No proxy found')
+            if not os.path.exists('txt'):
+                os.makedirs('txt')
+
+        for proxy_type, checked_proxies in all_checked_proxies.items():
+            proxy_list = []  
+
+            for checked_proxy in checked_proxies:
+                rounded_resp_time = round(checked_proxy[1], 2)
+                current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                logging.info(f"{proxy_type} {checked_proxy[0]} {rounded_resp_time} s.")
+                proxy_list.append(checked_proxy[0])
+                data_written = True
+
+            if args.txt:
+                with open(f'txt/{proxy_type}.txt', 'w') as file:
+                    file.write('\n'.join(proxy_list))
+                    
+        if not data_written:
+            logging.info('No proxy found')
+            
+        logging.info("Finished checking all proxies. Restarting from beginning...")
+        time.sleep(1)  # Small delay before restarting
+
+if __name__ == '__main__':
+    main_loop()
