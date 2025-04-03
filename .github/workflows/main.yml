@@ -36,7 +36,7 @@ jobs:
           for ((i=1; i<=300; i++)); do
             # Download proxies
             for t in http https socks4 socks5; do
-              curl -s -m 30 "http://127.0.0.1:8000/proxy/$t?time=2&minutes=10&format=text" -o "Proxies/$t.txt" || true
+              curl -s -m 30 "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
 
             # Git push
