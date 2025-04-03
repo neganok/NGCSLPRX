@@ -62,7 +62,7 @@ process = None
 if args.url:
     api_url = args.url
 else:
-    api_url = f"https://api.proxyscrape.com/v2/?request=displayproxies&protocol={proxy_type}&timeout={args.p}&country=all&ssl=all&anonymity=all"
+    api_url = f"https://api.proxyscrape.com/v4/free-proxy-list/get?request=display_proxies&proxy_format=ipport&format=text&country=all&ssl=all&anonymity=all&timeout={args.p}&protocol={proxy_type}"
 
 # Get the user's IP address 
 while True:
