@@ -11,56 +11,43 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    concurrency:
-      group: proxy-update-${{ github.ref }}
-      cancel-in-progress: true
-
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0
-          clean: true
+          fetch-depth: 1
+          persist-credentials: true
 
       - name: Setup
         run: |
-          sudo apt update && sudo apt install -y python3 python3-venv curl
+          sudo apt update && sudo apt install git python3-full python3-pip -y
           python3 -m venv env
           source env/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 20
 
       - name: Update & Push
         run: |
-          set -ex
+          set -e
           mkdir -p Proxies
-          
-          # Configure Git
+          git config --global pull.rebase false
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          
-          # Always start from clean state
-          git reset --hard
-          git pull origin main
 
           for ((i=1; i<=300; i++)); do
-            # Download fresh proxies (overwrite existing)
+            # Download proxies
             for t in http https socks4 socks5; do
               curl -s -m 30 "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
 
-            # Handle database (atomic update)
-            curl -s -m 30 "http://127.0.0.1:8000/db" -o data.db.tmp && mv data.db.tmp data.db || true
-
-            # Force update strategy
-            git add --force Proxies/ data.db 2>/dev/null || true
-            
+            # Git push
+            git add Proxies/ data.db 2>/dev/null || true
             if ! git diff --cached --quiet; then
-              # Create new commit without merging
-              git commit -m "📌 Update $(date +'%H:%M')"
-              # Force push with lease to prevent overwriting others' work
-              git push --force-with-lease origin main
+              git commit -m "📌 Update $(date +'%H:%M')" && \
+              git pull origin main --no-rebase && \
+              git push origin main && \
               echo "🔼 Push thành công ($i/300)"
             fi
-            
             sleep 60
           done
