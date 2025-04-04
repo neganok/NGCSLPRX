@@ -19,9 +19,9 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          clean: true  # Xóa sạch workspace trước khi bắt đầu
+          clean: true
 
-      - name: Setup Python
+      - name: Setup
         run: |
           sudo apt update && sudo apt install -y python3 python3-venv curl
           python3 -m venv env
@@ -29,36 +29,38 @@ jobs:
           nohup python3 start.py > start.log 2>&1 &
           sleep 20
 
-      - name: Force Clean Workspace
-        run: |
-          # Xóa cứng mọi thứ trừ thư mục .git
-          find . -path ./.git -prune -o -exec rm -rf {} \; 2>/dev/null || true
-          git reset --hard
-          git clean -fdx
-          git pull origin main
-
-      - name: Update Resources
+      - name: Update & Push
         run: |
           set -ex
           mkdir -p Proxies
           
-          # Tải proxies
-          for t in http https socks4 socks5; do
-            curl -s -m 30 "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
-          done
-
-          # Tải database (nếu có)
-          curl -s -m 30 "http://127.0.0.1:8000/db" -o data.db.tmp && mv data.db.tmp data.db || true
-
-          # Git config
+          # Configure Git
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          
+          # Always start from clean state
+          git reset --hard
+          git pull origin main
 
-          # CHỈ add Proxies và data.db
-          git add Proxies/
-          [ -f "data.db" ] && git add data.db || true
+          for ((i=1; i<=300; i++)); do
+            # Download fresh proxies (overwrite existing)
+            for t in http https socks4 socks5; do
+              curl -s -m 30 "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
+            done
 
-          # Force commit (bỏ qua mọi thay đổi khác)
-          git commit -m "📌 Update $(date +'%H:%M')" --allow-empty || true
-          git pull --allow-unrelated-histories -X ours origin main || true
-          git push origin main
+            # Handle database (atomic update)
+            curl -s -m 30 "http://127.0.0.1:8000/db" -o data.db.tmp && mv data.db.tmp data.db || true
+
+            # Force update strategy
+            git add --force Proxies/ data.db 2>/dev/null || true
+            
+            if ! git diff --cached --quiet; then
+              # Create new commit without merging
+              git commit -m "📌 Update $(date +'%H:%M')"
+              # Force push with lease to prevent overwriting others' work
+              git push --force-with-lease origin main
+              echo "🔼 Push thành công ($i/300)"
+            fi
+            
+            sleep 60
+          done
