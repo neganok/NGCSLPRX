@@ -19,7 +19,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          clean: true
 
       - name: Setup Python
         run: |
@@ -33,34 +32,32 @@ jobs:
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          echo "env/" >> .gitignore
-          echo "*.log" >> .gitignore
-          echo "__pycache__/" >> .gitignore
 
-      - name: Update Resources
+      - name: Update and Push
         run: |
           set -e
           mkdir -p Proxies
           
-          # Reset repository state
+          # Reset và bỏ qua mọi thay đổi khác ngoài Proxies và data.db
           git reset --hard
           git clean -fd
           git pull origin main
 
-          # Download fresh proxies
+          # Tải proxies mới
           for t in http https socks4 socks5; do
             curl -s -m 30 "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
           done
 
-          # Handle database file (binary)
+          # Tải database mới (nếu có)
           curl -s -m 30 "http://127.0.0.1:8000/db" -o data.db.tmp && mv data.db.tmp data.db || true
 
-          # Commit logic
+          # Chỉ thêm Proxies và data.db vào git
           git add Proxies/
           if [ -f "data.db" ]; then
             git add data.db
           fi
 
+          # Commit và push nếu có thay đổi
           if ! git diff --cached --quiet; then
             git commit -m "📌 Update $(date +'%H:%M')"
             git push origin main
