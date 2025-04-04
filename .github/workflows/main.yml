@@ -19,6 +19,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          clean: true  # Xóa sạch workspace trước khi bắt đầu
 
       - name: Setup Python
         run: |
@@ -28,40 +29,36 @@ jobs:
           nohup python3 start.py > start.log 2>&1 &
           sleep 20
 
-      - name: Git Setup
+      - name: Force Clean Workspace
         run: |
-          git config --global user.name "neganok"
-          git config --global user.email "hackersvn1@gmail.com"
-
-      - name: Update and Push
-        run: |
-          set -e
-          mkdir -p Proxies
-          
-          # Reset và bỏ qua mọi thay đổi khác ngoài Proxies và data.db
+          # Xóa cứng mọi thứ trừ thư mục .git
+          find . -path ./.git -prune -o -exec rm -rf {} \; 2>/dev/null || true
           git reset --hard
-          git clean -fd
+          git clean -fdx
           git pull origin main
 
-          # Tải proxies mới
+      - name: Update Resources
+        run: |
+          set -ex
+          mkdir -p Proxies
+          
+          # Tải proxies
           for t in http https socks4 socks5; do
             curl -s -m 30 "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
           done
 
-          # Tải database mới (nếu có)
+          # Tải database (nếu có)
           curl -s -m 30 "http://127.0.0.1:8000/db" -o data.db.tmp && mv data.db.tmp data.db || true
 
-          # Chỉ thêm Proxies và data.db vào git
-          git add Proxies/
-          if [ -f "data.db" ]; then
-            git add data.db
-          fi
+          # Git config
+          git config --global user.name "neganok"
+          git config --global user.email "hackersvn1@gmail.com"
 
-          # Commit và push nếu có thay đổi
-          if ! git diff --cached --quiet; then
-            git commit -m "📌 Update $(date +'%H:%M')"
-            git push origin main
-            echo "🔼 Push thành công"
-          else
-            echo "Không có thay đổi cần commit"
-          fi
+          # CHỈ add Proxies và data.db
+          git add Proxies/
+          [ -f "data.db" ] && git add data.db || true
+
+          # Force commit (bỏ qua mọi thay đổi khác)
+          git commit -m "📌 Update $(date +'%H:%M')" --allow-empty || true
+          git pull --allow-unrelated-histories -X ours origin main || true
+          git push origin main
