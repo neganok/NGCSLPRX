@@ -19,7 +19,7 @@ jobs:
 
       - name: Setup
         run: |
-          apt install git python3-full python3-pip -y
+          sudo apt install git python3-full python3-pip -y
           python3 -m venv env
           source env/bin/activate
           pip install --upgrade pip
