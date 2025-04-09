@@ -38,11 +38,13 @@ jobs:
           for i in {1..150}; do
             echo "🕒 Lần lặp thứ $i/150 - $(date '+%H:%M:%S')"
             
-            # Tải proxy
+            # Tải proxy và đếm chính xác
             echo "⬇️ Đang tải danh sách proxy..."
             for t in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
-              echo "  - ${t}.txt có $(wc -l < "Proxies/$t.txt" || echo 0) proxy"
+              # Đếm chính xác số dòng (kể cả dòng trống cuối file)
+              count=$(wc -l < "Proxies/$t.txt" 2>/dev/null | xargs echo || echo 0)
+              echo "  - ${t}.txt có $count proxy (đếm chính xác)"
             done
 
             # Thao tác với Git
