@@ -10,36 +10,37 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - run: |
           python3 -m venv env
           source env/bin/activate
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
-          
+
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           mkdir -p Proxies
-          
+
           for i in {1..150}; do
-            changed=false
+            # Reset repo state
+            git reset --hard
+            git pull origin main
+
+            # Download proxies
             for t in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
               [ -s "Proxies/$t.txt" ] || rm -f "Proxies/$t.txt"
-              if ! git diff --quiet -- "Proxies/$t.txt" 2>/dev/null; then
-                git add "Proxies/$t.txt"
-                changed=true
-              fi
             done
-            
-            if [ -f "data.db" ] && ! git diff --quiet -- "data.db"; then
-              git add "data.db"
-              changed=true
-            fi
-            
-            if $changed; then
+
+            # Add changes
+            git add Proxies/ data.db 2>/dev/null || true
+
+            # Commit & push if changes
+            if ! git diff --cached --quiet; then
               git commit -m "📌 Update $(date +'%H:%M')"
-              git pull --rebase && git push
+              git pull && git push
             fi
+
             sleep 120
           done
