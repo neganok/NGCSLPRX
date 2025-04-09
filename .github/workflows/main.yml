@@ -1,4 +1,4 @@
-name: Proxy Master
+name: Proxy Master Safe
 
 on:
   schedule:
@@ -12,32 +12,51 @@ jobs:
       - uses: actions/checkout@v4
 
       - run: |
+          # Setup environment
           python3 -m venv env
           source env/bin/activate
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
 
+          # Configure Git
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          
+          # Ensure Proxies directory exists
           mkdir -p Proxies
 
           for i in {1..150}; do
-            # Reset repo state
-            git reset --hard
+            # Get fresh changes without resetting
             git pull origin main
 
             # Download proxies
+            changed=false
             for t in http https socks4 socks5; do
-              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
-              [ -s "Proxies/$t.txt" ] || rm -f "Proxies/$t.txt"
+              tmp_file="Proxies/${t}_new.txt"
+              final_file="Proxies/${t}.txt"
+              
+              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "$tmp_file" || continue
+              
+              # Only update if file changed
+              if [ ! -f "$final_file" ] || ! cmp -s "$tmp_file" "$final_file"; then
+                mv "$tmp_file" "$final_file"
+                changed=true
+              else
+                rm -f "$tmp_file"
+              fi
             done
 
-            # Add changes
-            git add Proxies/ data.db 2>/dev/null || true
+            # Check data.db changes
+            if [ -f "data.db" ]; then
+              if ! git diff --quiet -- "data.db"; then
+                changed=true
+              fi
+            fi
 
-            # Commit & push if changes
-            if ! git diff --cached --quiet; then
+            # Commit & push only if changes detected
+            if $changed; then
+              git add Proxies/ data.db
               git commit -m "📌 Update $(date +'%H:%M')"
               git pull && git push
             fi
