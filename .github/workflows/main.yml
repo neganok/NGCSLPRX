@@ -1,95 +1,45 @@
-name: Proxy Master Complete
+name: Proxy Master
 
 on:
   schedule:
-    - cron: '0 */5 * * *'  # Chạy tự động mỗi 5 giờ
-  workflow_dispatch:        # Cho phép chạy thủ công
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
 
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 360    # Timeout sau 6h (dư 1h để xử lý)
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0     # Cần full history để kiểm tra thay đổi
-
-      - name: Setup Python environment
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-venv
+      - uses: actions/checkout@v4
+      - run: |
           python3 -m venv env
           source env/bin/activate
-          pip install --upgrade pip
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
-          sleep 15  # Đảm bảo server khởi động hoàn toàn
-
-      - name: Configure Git
-        run: |
+          sleep 15
+          
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          git config --global pull.rebase true  # Ưu tiên rebase
-
-      - name: Update and push proxies
-        run: |
-          set -e  # Dừng ngay nếu có lỗi
           mkdir -p Proxies
-
-          for i in {1..150}; do  # 150 lần × 120s = 5 tiếng
-            echo "🔄 Cycle $i/150 - $(date '+%H:%M:%S')"
-            CHANGED_FILES=()
-
-            # Lấy và kiểm tra proxy
+          
+          for i in {1..150}; do
+            changed=false
             for t in http https socks4 socks5; do
-              OLD_HASH=$(sha1sum "Proxies/$t.txt" 2>/dev/null | cut -d' ' -f1 || true)
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
-              
-              # Bỏ qua file rỗng
-              if [ ! -s "Proxies/$t.txt" ]; then
-                rm -f "Proxies/$t.txt"
-                continue
-              fi
-
-              NEW_HASH=$(sha1sum "Proxies/$t.txt" | cut -d' ' -f1)
-              if [ "$OLD_HASH" != "$NEW_HASH" ]; then
+              [ -s "Proxies/$t.txt" ] || rm -f "Proxies/$t.txt"
+              if ! git diff --quiet -- "Proxies/$t.txt" 2>/dev/null; then
                 git add "Proxies/$t.txt"
-                CHANGED_FILES+=("$t.txt")
+                changed=true
               fi
             done
-
-            # Kiểm tra data.db
-            if [ -f "data.db" ]; then
-              OLD_DB_HASH=$(sha1sum "data.db" 2>/dev/null | cut -d' ' -f1 || true)
-              # Thêm các thao tác xử lý data.db của bạn ở đây
-              NEW_DB_HASH=$(sha1sum "data.db" | cut -d' ' -f1)
-              
-              if [ "$OLD_DB_HASH" != "$NEW_DB_HASH" ]; then
-                git add "data.db"
-                CHANGED_FILES+=("data.db")
-              fi
+            
+            if [ -f "data.db" ] && ! git diff --quiet -- "data.db"; then
+              git add "data.db"
+              changed=true
             fi
-
-            if [ ${#CHANGED_FILES[@]} -gt 0 ]; then
-              echo "🆕 Files changed: ${CHANGED_FILES[*]}"
-              git commit -m "📌 Update $(date +'%H:%M') - ${CHANGED_FILES[*]}"
-              
-              # Retry logic
-              for retry in {1..3}; do
-                if git pull --rebase && git push; then
-                  echo "✅ Push thành công"
-                  break
-                else
-                  echo "🔄 Retry $retry/3..."
-                  sleep 5
-                  git reset --hard HEAD
-                fi
-              done
-            else
-              echo "⏭️ Không có thay đổi"
+            
+            if $changed; then
+              git commit -m "📌 Update $(date +'%H:%M')"
+              git pull --rebase && git push
             fi
-
-            sleep 120  # Đảm bảo chính xác 120s giữa các lần chạy
+            sleep 120
           done
