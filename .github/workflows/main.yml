@@ -1,67 +1,46 @@
-name: Proxy Master Tối Ưu
+name: Proxy Master
 
 on:
   schedule:
-    - cron: '0 */5 * * *'  # Tự động chạy mỗi 5 giờ
-  workflow_dispatch:        # Cho phép chạy thủ công
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
 
 jobs:
   cap_nhat:
     runs-on: ubuntu-latest
     steps:
-      - name: 🛠️ Thiết lập môi trường
+      - name: 🛠️ Cài đặt ban đầu
         uses: actions/checkout@v4
 
-      - name: 🐍 Cài đặt Python
+      - name: 🐍 Khởi chạy server
         run: |
-          echo "⚙️ Đang thiết lập môi trường Python ảo..."
           python3 -m venv env
           source env/bin/activate
-          pip install --upgrade pip
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
-          echo "✅ Đã hoàn thành thiết lập môi trường"
+          echo "🟢 Server đã chạy"
 
-      - name: 📂 Khởi tạo thư mục
+      - name: 🔄 Cập nhật proxy
         run: |
-          echo "🔧 Đang tạo thư mục Proxies nếu chưa tồn tại..."
           mkdir -p Proxies
-          echo "⚙️ Đang cấu hình Git..."
-          git config --global user.name "neganok"
-          git config --global user.email "hackersvn1@gmail.com"
-          echo "✅ Đã hoàn thành khởi tạo"
-
-      - name: 🔄 Cập nhật Proxy
-        run: |
-          echo "🔄 Bắt đầu chu kỳ cập nhật proxy (150 lần lặp)"
           for i in {1..150}; do
-            echo "🕒 Lần lặp thứ $i/150 - $(date '+%H:%M:%S')"
+            echo "🔄 Lần $i/150 - $(date '+%H:%M:%S')"
             
-            # Tải proxy và đếm chính xác
-            echo "⬇️ Đang tải danh sách proxy..."
+            # Tải proxy
             for t in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
-              # Đếm chính xác số dòng (kể cả dòng trống cuối file)
-              count=$(wc -l < "Proxies/$t.txt" 2>/dev/null | xargs echo || echo 0)
-              echo "  - ${t}.txt có $count proxy (đếm chính xác)"
+              echo "📊 ${t}.txt: $(wc -l < "Proxies/$t.txt" | tr -d ' ') proxy"
             done
 
-            # Thao tác với Git
-            echo "💾 Đang lưu thay đổi..."
+            # Xử lý Git
             git add Proxies/ data.db
-            
             if ! git diff --cached --quiet; then
-              echo "📌 Đang commit thay đổi..."
-              git commit -m "📌 Cập nhật lúc $(date +'%H:%M')"
-              echo "🚀 Đang đẩy thay đổi lên GitHub..."
+              git commit -m "📌 Cập nhật $(date +'%H:%M')" 
               git pull origin main && git push origin main
-              echo "✅ Đã đẩy thành công"
-            else
-              echo "⏭️ Không phát hiện thay đổi"
+              echo "🟢 Đã cập nhật thành công"
             fi
 
-            echo "⏳ Đợi 120 giây..."
             sleep 120
           done
-          echo "🎉 Đã hoàn thành tất cả lần lặp"
+          echo "🎯 Hoàn tất 150 lần cập nhật"
