@@ -1,52 +1,72 @@
-name: Proxy Master
+name: Proxy Master Optimized
 
 on:
   schedule:
     - cron: '0 */5 * * *'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   update:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0  # Cần full history để kiểm tra thay đổi chính xác
 
-      - name: Setup environment & start server
+      - name: Setup
         run: |
-          sudo apt install -y git python3-full python3-pip
-          python3 -m venv env
-          source env/bin/activate
-          pip install --upgrade pip
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
 
-      - name: Update & Push proxies
+      - name: Update proxies
         run: |
-          set -e
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           mkdir -p Proxies
+          
+          for i in {1..150}; do
+            echo "🔄 Lần cập nhật thứ $i/150"
+            CHANGED=false
 
-          for ((i=1; i<=300; i++)); do
+            # Kiểm tra từng loại proxy
             for t in http https socks4 socks5; do
+              OLD_HASH=$(sha1sum "Proxies/$t.txt" 2>/dev/null | cut -d' ' -f1 || true)
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
+              
+              # Bỏ qua file rỗng
+              if [ ! -s "Proxies/$t.txt" ]; then
+                rm -f "Proxies/$t.txt"
+                continue
+              fi
+              
+              NEW_HASH=$(sha1sum "Proxies/$t.txt" | cut -d' ' -f1)
+              if [ "$OLD_HASH" != "$NEW_HASH" ]; then
+                git add "Proxies/$t.txt"
+                CHANGED=true
+                echo "🆕 $t.txt có thay đổi"
+              fi
             done
 
-            git add Proxies/ data.db 2>/dev/null || true
-
-            if ! git diff --cached --quiet; then
-              git commit -m "📌 Update $(date +'%H:%M')"
-              git pull origin main --no-rebase
-              git push origin main && echo "🔼 Push thành công ($i/300)"
+            # Kiểm tra data.db
+            if [ -f "data.db" ]; then
+              OLD_DB_HASH=$(sha1sum "data.db" 2>/dev/null | cut -d' ' -f1 || true)
+              # Thêm logic xử lý data.db của bạn ở đây
+              
+              NEW_DB_HASH=$(sha1sum "data.db" | cut -d' ' -f1)
+              if [ "$OLD_DB_HASH" != "$NEW_DB_HASH" ]; then
+                git add "data.db"
+                CHANGED=true
+                echo "🆕 data.db có thay đổi"
+              fi
             fi
 
-            sleep 60
+            if $CHANGED; then
+              git commit -m "📌 Update $(date +'%H:%M')"
+              git pull --rebase && git push && echo "✅ Đã push thành công"
+            else
+              echo "⏭️ Không có file nào thay đổi - Bỏ qua"
+            fi
+
+            sleep 120
           done
