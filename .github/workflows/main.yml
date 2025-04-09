@@ -1,42 +1,65 @@
-name: Proxy Master Simple
+name: Proxy Master Tối Ưu
 
 on:
   schedule:
-    - cron: '0 */5 * * *'
-  workflow_dispatch:
+    - cron: '0 */5 * * *'  # Tự động chạy mỗi 5 giờ
+  workflow_dispatch:        # Cho phép chạy thủ công
 
 jobs:
-  update:
+  cap_nhat:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: 🛠️ Thiết lập môi trường
+        uses: actions/checkout@v4
 
-      - run: |
-          # Setup môi trường
+      - name: 🐍 Cài đặt Python
+        run: |
+          echo "⚙️ Đang thiết lập môi trường Python ảo..."
           python3 -m venv env
           source env/bin/activate
+          pip install --upgrade pip
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
+          echo "✅ Đã hoàn thành thiết lập môi trường"
 
-          # Tạo folder nếu chưa có
+      - name: 📂 Khởi tạo thư mục
+        run: |
+          echo "🔧 Đang tạo thư mục Proxies nếu chưa tồn tại..."
           mkdir -p Proxies
-
-          # Cấu hình git đơn giản
+          echo "⚙️ Đang cấu hình Git..."
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          echo "✅ Đã hoàn thành khởi tạo"
 
-          # Vòng lặp chính
+      - name: 🔄 Cập nhật Proxy
+        run: |
+          echo "🔄 Bắt đầu chu kỳ cập nhật proxy (150 lần lặp)"
           for i in {1..150}; do
-            # Tải proxy mới
+            echo "🕒 Lần lặp thứ $i/150 - $(date '+%H:%M:%S')"
+            
+            # Tải proxy
+            echo "⬇️ Đang tải danh sách proxy..."
             for t in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
+              echo "  - ${t}.txt có $(wc -l < "Proxies/$t.txt" || echo 0) proxy"
             done
 
-            # Push đơn giản
+            # Thao tác với Git
+            echo "💾 Đang lưu thay đổi..."
             git add Proxies/ data.db
-            git diff --cached --quiet || git commit -m "📌 Update $(date +'%H:%M')"
-            git pull origin main && git push origin main
             
+            if ! git diff --cached --quiet; then
+              echo "📌 Đang commit thay đổi..."
+              git commit -m "📌 Cập nhật lúc $(date +'%H:%M')"
+              echo "🚀 Đang đẩy thay đổi lên GitHub..."
+              git pull origin main && git push origin main
+              echo "✅ Đã đẩy thành công"
+            else
+              echo "⏭️ Không phát hiện thay đổi"
+            fi
+
+            echo "⏳ Đợi 120 giây..."
             sleep 120
           done
+          echo "🎉 Đã hoàn thành tất cả lần lặp"
