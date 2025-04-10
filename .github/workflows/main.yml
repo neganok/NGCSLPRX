@@ -13,7 +13,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Clean workspace
+        run: |
+          sudo rm -rf *
+          
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Start service
         run: |
@@ -21,28 +27,35 @@ jobs:
           nohup python3 start.py > start.log 2>&1 &
           sleep 10
 
-      - name: Update proxies
+      - name: Update and push
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           
-          # Tạo thư mục Proxies nếu chưa có
+          # Tạo thư mục và lấy proxy
           mkdir -p Proxies
-          
-          # Lấy tất cả loại proxy
           for t in http https socks4 socks5; do
             curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
           done
-          
+
           # Chỉ thêm file cần thiết
           git add Proxies/ data.db
           
-          # Nếu có thay đổi thì commit và push
+          # Commit và push nếu có thay đổi
           if ! git diff --cached --quiet; then
-            git commit -m "🔄 Update proxies $(date +'%H:%M')"
-            git pull origin main
-            git push origin main
-            echo "✅ Đã cập nhật thành công"
+            git commit -m "🔄 Update $(date +'%H:%M')"
+            
+            # Push với retry đơn giản
+            for i in {1..3}; do
+              if git pull origin main && git push origin main; then
+                echo "✅ Đã cập nhật thành công"
+                exit 0
+              fi
+              sleep 5
+            done
+            
+            echo "❌ Không thể push sau 3 lần thử"
+            exit 1
           else
             echo "⏭ Không có thay đổi"
           fi
