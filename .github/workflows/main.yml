@@ -40,35 +40,35 @@ jobs:
             echo "🔄 Update cycle $i/300 - $(date '+%H:%M:%S')"
             
             # Download all proxy types
-            - name: ⬇️ Download proxy lists
-              for type in http https socks4 socks5; do
-                curl -s "http://127.0.0.1:8000/proxy/$type?time=3&minutes=15&format=text" -o "Proxies/$type.txt" || true
-              done
+            echo "⬇️ Downloading proxy lists..."
+            for type in http https socks4 socks5; do
+              curl -s "http://127.0.0.1:8000/proxy/$type?time=3&minutes=15&format=text" -o "Proxies/$type.txt" || true
+            done
 
             # Commit and push changes (only if there are changes)
-            - name: 💾 Commit and push updates
-              git add Proxies/ data.db
-              if git diff --cached --quiet; then
-                echo "⏭️ No changes detected"
-              else
-                git commit -m "🔄 Auto Update Proxy $(date +'%Y-%m-%d %H:%M')" --allow-empty
-                git pull origin main --no-rebase
-                git push origin main
-                echo "✅ Successfully updated proxy lists"
-              fi
+            echo "💾 Checking for changes..."
+            git add Proxies/ data.db
+            if git diff --cached --quiet; then
+              echo "⏭️ No changes detected"
+            else
+              git commit -m "🔄 Auto Update Proxy $(date +'%Y-%m-%d %H:%M')" --allow-empty
+              git pull origin main --no-rebase
+              git push origin main
+              echo "✅ Successfully updated proxy lists"
+            fi
             
             # Special handling for data.db (every 60 minutes)
             if (( i % 60 == 0 )); then
-              - name: 🗃️ Process data.db (60-minute interval)
-                git add data.db
-                if git diff --cached --quiet; then
-                  echo "⏭️ No changes in data.db"
-                else
-                  git commit -m "🔄 Update data.db $(date +'%H:%M')" --allow-empty
-                  git pull origin main --no-rebase
-                  git push origin main
-                  echo "✅ Successfully updated data.db"
-                fi
+              echo "🗃️ Processing data.db (60-minute interval)..."
+              git add data.db
+              if git diff --cached --quiet; then
+                echo "⏭️ No changes in data.db"
+              else
+                git commit -m "🔄 Update data.db $(date +'%H:%M')" --allow-empty
+                git pull origin main --no-rebase
+                git push origin main
+                echo "✅ Successfully updated data.db"
+              fi
             fi
             
             sleep 60  # Wait 60 seconds between cycles
