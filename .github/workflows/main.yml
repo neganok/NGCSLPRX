@@ -21,44 +21,28 @@ jobs:
           nohup python3 start.py > start.log 2>&1 &
           sleep 10
 
-      - name: 5-hour updater
+      - name: Update proxies
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          
+          # Tạo thư mục Proxies nếu chưa có
           mkdir -p Proxies
-
-          for ((i=1; i<=300; i++)); do
-            # Lấy proxies
-            for t in http https socks4 socks5; do
-              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
-            done
-
-            # Xử lý Git chắc chắn
-            git add Proxies/ data.db
-            
-            if ! git diff --cached --quiet; then
-              # Reset mọi thay đổi trước khi rebase
-              git reset --hard HEAD
-              git pull origin main --rebase
-              
-              # Thêm lại changes và commit
-              git add Proxies/ data.db
-              git commit -m "🔄 Update $(date +'%H:%M')"
-              
-              # Push với retry
-              for retry in {1..3}; do
-                if git push origin main; then
-                  echo "✅ Đã push #$i"
-                  break
-                else
-                  echo "🔄 Thử lại push #$i (lần $retry/3)"
-                  sleep 5
-                  git pull origin main --rebase
-                fi
-              done
-            else
-              echo "⏭ Bỏ qua #$i"
-            fi
-
-            sleep 60
+          
+          # Lấy tất cả loại proxy
+          for t in http https socks4 socks5; do
+            curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
           done
+          
+          # Chỉ thêm file cần thiết
+          git add Proxies/ data.db
+          
+          # Nếu có thay đổi thì commit và push
+          if ! git diff --cached --quiet; then
+            git commit -m "🔄 Update proxies $(date +'%H:%M')"
+            git pull origin main
+            git push origin main
+            echo "✅ Đã cập nhật thành công"
+          else
+            echo "⏭ Không có thay đổi"
+          fi
