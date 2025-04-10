@@ -1,75 +1,124 @@
-name: Proxy Master (Auto Update)
+name: Proxy Master Tối Ưu
 
 on:
   schedule:
-    - cron: '0 */5 * * *'  # Runs every 5 hours
-  workflow_dispatch:        # Allows manual triggering
+    - cron: '0 */5 * * *'  # Tự động chạy mỗi 5 giờ
+  workflow_dispatch:        # Cho phép chạy thủ công
 
 jobs:
-  update-proxy:
+  cap_nhat:
     runs-on: ubuntu-latest
+    timeout-minutes: 360  # Tự động hủy nếu chạy quá 6 tiếng
+    
     steps:
-      # Step 1: Checkout repository
-      - name: 🔄 Checkout code repository
-        uses: actions/checkout@v4
-        
-      # Step 2: Setup Python environment
-      - name: 🐍 Setup Python virtual environment
+      # --- PHẦN 1: THIẾT LẬP CƠ BẢN ---
+      - name: "🔧 1. Thiết lập ban đầu"
         run: |
-          python3 -m venv venv
-          source venv/bin/activate
+          sudo apt-get update
+          sudo apt-get install -y curl git python3 python3-venv
+          git config --global --add safe.directory /github/workspace
+          
+      - name: "📥 2. Checkout code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # --- PHẦN 2: KHỞI ĐỘNG SERVICE ---
+      - name: "🐍 3. Cài đặt Python"
+        run: |
+          python3 -m venv env
+          source env/bin/activate
+          pip install --upgrade pip
           pip install -r requirements.txt
           
-      # Step 3: Start proxy service
-      - name: 🚀 Start Proxy Service
+      - name: "🚀 4. Khởi động proxy service"
         run: |
           pkill -f "python3 start.py" || true
-          nohup python3 start.py > proxy.log 2>&1 &
-          sleep 10
+          nohup python3 start.py > start.log 2>&1 &
+          echo "🕒 Chờ 20s cho service ổn định..."
+          sleep 20
           
-      # Step 4: Configure Git
-      - name: ⚙️ Configure Git settings
+          # Kiểm tra service đã chạy chưa
+          if ! curl -s http://127.0.0.1:8000 >/dev/null; then
+            echo "❌ LỖI: Không thể kết nối đến proxy service"
+            exit 1
+          fi
+
+      # --- PHẦN 3: VÒNG LẶP CHÍNH ---
+      - name: "🔄 5. Vòng lặp cập nhật"
         run: |
+          # Cấu hình Git
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          git config --global pull.rebase false
           
-      # Step 5: Main proxy update loop
-      - name: 🔄 Continuous Proxy Update (60s interval)
-        run: |
-          for i in {1..300}; do
-            echo "🔄 Update cycle $i/300 - $(date '+%H:%M:%S')"
+          # Tạo thư mục nếu chưa có
+          mkdir -p Proxies
+          
+          echo "⏳ Bắt đầu chu kỳ cập nhật (150 lần)"
+          for i in {1..150}; do
+            echo "----------------------------------------"
+            echo "🔄 LẦN $i/150 | $(date '+%H:%M:%S %d/%m')"
             
-            # Download all proxy types
-            echo "⬇️ Downloading proxy lists..."
+            # --- TẢI PROXY ---
+            echo "⬇️ Đang tải proxy..."
+            any_update=false
+            
             for type in http https socks4 socks5; do
-              curl -s "http://127.0.0.1:8000/proxy/$type?time=3&minutes=15&format=text" -o "Proxies/$type.txt" || true
-            done
-
-            # Commit and push changes (only if there are changes)
-            echo "💾 Checking for changes..."
-            git add Proxies/ data.db
-            if git diff --cached --quiet; then
-              echo "⏭️ No changes detected"
-            else
-              git commit -m "🔄 Auto Update Proxy $(date +'%Y-%m-%d %H:%M')" --allow-empty
-              git pull origin main --no-rebase
-              git push origin main
-              echo "✅ Successfully updated proxy lists"
-            fi
-            
-            # Special handling for data.db (every 60 minutes)
-            if (( i % 60 == 0 )); then
-              echo "🗃️ Processing data.db (60-minute interval)..."
-              git add data.db
-              if git diff --cached --quiet; then
-                echo "⏭️ No changes in data.db"
+              # Tải về file tạm trước
+              if curl -s "http://127.0.0.1:8000/proxy/$type?time=3&minutes=15&format=text" -o "Proxies/${type}_new.txt"; then
+                # So sánh với file cũ
+                if ! cmp -s "Proxies/${type}.txt" "Proxies/${type}_new.txt"; then
+                  mv "Proxies/${type}_new.txt" "Proxies/${type}.txt"
+                  echo "  - ${type}.txt: $(wc -l < "Proxies/${type}.txt") proxy"
+                  any_update=true
+                else
+                  rm "Proxies/${type}_new.txt"
+                  echo "  - ${type}.txt: Không có thay đổi"
+                fi
               else
-                git commit -m "🔄 Update data.db $(date +'%H:%M')" --allow-empty
-                git pull origin main --no-rebase
-                git push origin main
-                echo "✅ Successfully updated data.db"
+                echo "⚠️ Lỗi khi tải ${type}.txt"
               fi
+            done
+            
+            # --- XỬ LÝ GIT ---
+            if [ "$any_update" = true ] || [ $((i % 10)) -eq 0 ]; then
+              echo "💾 Đang đồng bộ với GitHub..."
+              
+              # Thêm timestamp để đảm bảo luôn có thay đổi
+              date > Proxies/last_updated.txt
+              
+              git add --all
+              if git diff --cached --quiet; then
+                git commit --allow-empty -m "🔄 Keep-alive #$i $(date +'%H:%M')"
+              else
+                git commit -m "📌 Cập nhật proxy #$i $(date +'%H:%M')"
+              fi
+              
+              # Đẩy code với retry nếu lỗi
+              for retry in {1..3}; do
+                if git pull --no-rebase origin main && git push origin main; then
+                  echo "✅ Đồng bộ thành công"
+                  break
+                else
+                  echo "⚠️ Lỗi đồng bộ (lần $retry), đang thử lại..."
+                  sleep 5
+                fi
+              done
+            else
+              echo "⏭️ Không có thay đổi, bỏ qua commit"
             fi
             
-            sleep 60  # Wait 60 seconds between cycles
+            # Xử lý data.db mỗi 60 phút (30 lần lặp)
+            if [ $((i % 30)) -eq 0 ]; then
+              echo "🛢️ Đang xử lý data.db..."
+              git add data.db
+              git commit --allow-empty -m "📦 Cập nhật data.db $(date +'%H:%M')"
+              git pull origin main && git push origin main
+            fi
+            
+            echo "⏳ Chờ 120s..."
+            sleep 120
           done
+          
+          echo "🎯 ĐÃ HOÀN THÀNH TẤT CẢ LẦN LẶP"
