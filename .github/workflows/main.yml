@@ -10,9 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Quan trọng để tránh lỗi git
-
+      
       - name: 🚀 Khởi chạy Proxy Service
         run: |
           python3 -m venv venv
@@ -22,57 +20,29 @@ jobs:
           nohup python3 start.py > proxy.log 2>&1 &
           sleep 10
 
-      - name: ⚙️ Cấu hình Git chống lỗi
+      - name: 🔄 Cập nhật Proxy List
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          git config --global http.postBuffer 524288000
-          git config --global gc.auto 0  # Tắt garbage collection
-          git config --global core.autocrlf false
-
-      - name: 🔄 Cập nhật dữ liệu
-        run: |
-          START_TIME=$(date +%s)
-          END_TIME=$((START_TIME + 5*60*60))  # 5 tiếng sau
-          COUNTER=0
           
-          while [ $(date +%s) -lt $END_TIME ]; do
-            COUNTER=$((COUNTER+1))
-            CURRENT_TIME=$(date '+%H:%M:%S')
-            echo "🔄 Đang chạy - $CURRENT_TIME (Lần thứ $COUNTER)"
+          for i in {1..300}; do
+            echo "🔄 Lần $i/150 - $(date '+%H:%M:%S')"
             
             # Tải proxy
-            mkdir -p Proxies
             for type in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$type?time=3&minutes=15&format=text" -o "Proxies/$type.txt" || true
             done
 
-            # Xử lý Git cực kỳ ổn định
-            git reset --hard HEAD
-            git clean -fd
-            git pull origin main
-            
-            git add Proxies/ data.db  # Đã thêm data.db
-            
-            if ! git diff --cached --quiet; then
-              git commit -m "📌 Update $CURRENT_TIME" --allow-empty || true
-              
-              # Push với retry
-              for retry in {1..3}; do
-                if git push origin main; then
-                  echo "✅ Đã push thành công (Lần $COUNTER)"
-                  break
-                else
-                  echo "🔄 Thử lại push ($retry/3)..."
-                  sleep 5
-                  git pull origin main
-                fi
-              done
-            else
+            # Git đơn giản, không rebase, không pull phức tạp
+            git add Proxies/ data.db
+            if git diff --cached --quiet; then
               echo "⏭️ Không có thay đổi"
+            else
+              git commit -m "🔄 Update Proxy $(date +'%H:%M')" --allow-empty
+              git pull origin main --no-rebase
+              git push origin main
+              echo "✅ Đã cập nhật"
             fi
             
-            sleep 60
+            sleep 60  # Chờ 60s giữa các lần
           done
-          
-          echo "🎉 Đã hoàn thành! Tổng số lần cập nhật: $COUNTER"
