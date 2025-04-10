@@ -11,70 +11,41 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 300  # 5 giờ
+    timeout-minutes: 300  # 5 tiếng
 
     steps:
-      - name: Clean workspace
-        run: |
-          # Xóa sạch mọi thứ trước khi bắt đầu
-          sudo rm -rf *
-          mkdir -p Proxies
-
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Lấy toàn bộ lịch sử
 
       - name: Setup environment
         run: |
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
-          sleep 15
+          sleep 10
+          
+          # Tạo alias như bạn muốn
+          echo 'alias gitpush="git add . && git commit -m \"Cập nhật tự động\" && git push origin main"' >> ~/.bashrc
+          source ~/.bashrc
 
-      - name: Rock-solid updater
+      - name: Simple updater
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-
-          # Bắt đầu timer
-          START=$(date +%s)
-          END=$((START + 18000))  # 5 tiếng
+          
           COUNT=0
-
-          while [ $(date +%s) -lt $END ]; do
+          while [ $COUNT -lt 300 ]; do  # 300 lần x 60s = 5 tiếng
             COUNT=$((COUNT + 1))
-            echo "🚀 Lần chạy thứ $COUNT - $(date +'%H:%M:%S')"
-
+            echo "🔄 Lần chạy thứ $COUNT"
+            
             # Tải proxies
+            mkdir -p Proxies
             for t in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
-
-            # Xử lý Git cực kỳ chắc chắn
-            git add --all Proxies/ data.db
             
-            if ! git diff --cached --quiet; then
-              # Tạo commit mới
-              git commit -m "🔥 Update $(date +'%H:%M:%S')"
-              
-              # Push với cơ chế phục hồi
-              for RETRY in {1..5}; do
-                git fetch origin
-                git reset --hard origin/main
-                if git push origin main; then
-                  echo "✅ THÀNH CÔNG sau $RETRY lần thử"
-                  break
-                else
-                  echo "🔄 Thử lại lần $RETRY..."
-                  sleep 10
-                  git reset --hard HEAD^
-                fi
-              done
-            else
-              echo "⏭ Không có thay đổi"
-            fi
-
-            # Chờ 60s
+            # Dùng alias của bạn để push
+            gitpush || echo "⚠️ Lỗi khi push, sẽ thử lại lần sau"
+            
             sleep 60
           done
-
-          echo "🎉 HOÀN TẤT sau 5 giờ!"
+          
+          echo "✅ Đã chạy đủ 5 tiếng"
