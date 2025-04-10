@@ -13,66 +13,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        # Bỏ fetch-depth để dùng shallow clone mặc định (nhanh hơn)
+      - uses: actions/checkout@v4
 
-      - name: Setup environment
+      - name: Start service
         run: |
-          sudo apt install -y git python3-full python3-pip
-          python3 -m venv env
-          source env/bin/activate
-          pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Start proxy service
-        run: |
-          set -e
-          source env/bin/activate
-          pkill -f "python3 start.py" || true
           nohup python3 start.py > start.log 2>&1 &
-          sleep 15
+          sleep 10
 
-      - name: Fast monitor and push
+      - name: 5-hour updater
         run: |
-          set -e
-          source env/bin/activate
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           mkdir -p Proxies
 
-          # Lấy trạng thái hiện tại của các file quan trọng
-          OLD_DATA_HASH=$(sha1sum data.db 2>/dev/null || echo "")
-          OLD_PROXY_HASH=$(find Proxies/ -type f -exec sha1sum {} + | sha1sum | cut -d' ' -f1)
-
-          while true; do
-            # Lấy proxies
+          for ((i=1; i<=300; i++)); do  # 300 lần x 60s = 5 tiếng
+            # Lấy đủ 4 loại proxy
             for t in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
 
-            # Kiểm tra thay đổi bằng hash (nhanh hơn git diff)
-            NEW_DATA_HASH=$(sha1sum data.db 2>/dev/null || echo "")
-            NEW_PROXY_HASH=$(find Proxies/ -type f -exec sha1sum {} + | sha1sum | cut -d' ' -f1)
-
-            if [ "$OLD_DATA_HASH" != "$NEW_DATA_HASH" ] || [ "$OLD_PROXY_HASH" != "$NEW_PROXY_HASH" ]; then
-              echo "🔄 Phát hiện thay đổi, đang cập nhật..."
-              git add data.db Proxies/
-              git commit -m "📌 Fast update $(date +'%H:%M:%S')"
-              
-              # Push trực tiếp không cần pull trước (nhanh hơn)
-              if git push origin main; then
-                echo "✅ Đã push thành công"
-                # Cập nhật hash mới
-                OLD_DATA_HASH=$NEW_DATA_HASH
-                OLD_PROXY_HASH=$NEW_PROXY_HASH
-              else
-                echo "❌ Push thất bại, sẽ thử lại lần sau"
-                git reset --hard
-              fi
+            # Chỉ push khi có thay đổi
+            git add Proxies/ data.db
+            if ! git diff --cached --quiet; then
+              git commit -m "🔄 Update $(date +'%H:%M')"
+              git pull --rebase origin main
+              git push origin main
+              echo "✅ Đã push #$i"
             else
-              echo "⏭ Không có thay đổi"
+              echo "⏭ Bỏ qua #$i"
             fi
 
-            sleep 60
+            sleep 60  # Chờ 60s
           done
