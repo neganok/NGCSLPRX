@@ -21,10 +21,6 @@ jobs:
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 10
-          
-          # Tạo alias như bạn muốn
-          echo 'alias gitpush="git add . && git commit -m \"Cập nhật tự động\" && git push origin main"' >> ~/.bashrc
-          source ~/.bashrc
 
       - name: Simple updater
         run: |
@@ -32,7 +28,7 @@ jobs:
           git config --global user.email "hackersvn1@gmail.com"
           
           COUNT=0
-          while [ $COUNT -lt 300 ]; do  # 300 lần x 60s = 5 tiếng
+          while [ $COUNT -lt 300 ]; do
             COUNT=$((COUNT + 1))
             echo "🔄 Lần chạy thứ $COUNT"
             
@@ -42,8 +38,10 @@ jobs:
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
             
-            # Dùng alias của bạn để push
-            gitpush || echo "⚠️ Lỗi khi push, sẽ thử lại lần sau"
+            # Thực hiện git commands trực tiếp (thay cho alias)
+            git add Proxies/ data.db
+            git commit -m "Cập nhật tự động $(date +'%H:%M:%S')" || echo "⚠️ Không có thay đổi"
+            git push origin main || echo "⚠️ Lỗi khi push"
             
             sleep 60
           done
