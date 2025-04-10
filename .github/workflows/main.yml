@@ -15,8 +15,7 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+        # Bỏ fetch-depth để dùng shallow clone mặc định (nhanh hơn)
 
       - name: Setup environment
         run: |
@@ -34,7 +33,7 @@ jobs:
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
 
-      - name: Monitor and push changes
+      - name: Fast monitor and push
         run: |
           set -e
           source env/bin/activate
@@ -42,27 +41,37 @@ jobs:
           git config --global user.email "hackersvn1@gmail.com"
           mkdir -p Proxies
 
+          # Lấy trạng thái hiện tại của các file quan trọng
+          OLD_DATA_HASH=$(sha1sum data.db 2>/dev/null || echo "")
+          OLD_PROXY_HASH=$(find Proxies/ -type f -exec sha1sum {} + | sha1sum | cut -d' ' -f1)
+
           while true; do
             # Lấy proxies
             for t in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
 
-            # Kiểm tra thay đổi chỉ trên data.db và Proxies/
-            CHANGED=false
-            if ! git diff --quiet -- data.db Proxies/; then
-              git add data.db Proxies/
-              git commit -m "📌 Update proxies $(date +'%H:%M:%S')"
-              CHANGED=true
-            fi
+            # Kiểm tra thay đổi bằng hash (nhanh hơn git diff)
+            NEW_DATA_HASH=$(sha1sum data.db 2>/dev/null || echo "")
+            NEW_PROXY_HASH=$(find Proxies/ -type f -exec sha1sum {} + | sha1sum | cut -d' ' -f1)
 
-            # Nếu có thay đổi thì push
-            if $CHANGED; then
-              git pull origin main --rebase
-              git push origin main
-              echo "✅ Đã push thay đổi data.db và Proxies/"
+            if [ "$OLD_DATA_HASH" != "$NEW_DATA_HASH" ] || [ "$OLD_PROXY_HASH" != "$NEW_PROXY_HASH" ]; then
+              echo "🔄 Phát hiện thay đổi, đang cập nhật..."
+              git add data.db Proxies/
+              git commit -m "📌 Fast update $(date +'%H:%M:%S')"
+              
+              # Push trực tiếp không cần pull trước (nhanh hơn)
+              if git push origin main; then
+                echo "✅ Đã push thành công"
+                # Cập nhật hash mới
+                OLD_DATA_HASH=$NEW_DATA_HASH
+                OLD_PROXY_HASH=$NEW_PROXY_HASH
+              else
+                echo "❌ Push thất bại, sẽ thử lại lần sau"
+                git reset --hard
+              fi
             else
-              echo "⏭ Không có thay đổi, bỏ qua"
+              echo "⏭ Không có thay đổi"
             fi
 
             sleep 60
