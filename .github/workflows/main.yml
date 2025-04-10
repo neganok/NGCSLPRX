@@ -16,49 +16,47 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Lấy toàn bộ history để tránh conflict
+          fetch-depth: 0
 
-      - name: Setup environment & start server
+      - name: Setup environment
         run: |
           sudo apt install -y git python3-full python3-pip
           python3 -m venv env
           source env/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Start proxy service
+        run: |
+          set -e
+          source env/bin/activate
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
 
-      - name: Update & Push proxies
+      - name: Monitor and push changes
         run: |
           set -e
+          source env/bin/activate
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           mkdir -p Proxies
 
-          for ((i=1; i<=300; i++)); do
+          while true; do
             # Lấy proxies
             for t in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
 
-            # Git operations với cơ chế retry
+            # Kiểm tra thay đổi
             git add Proxies/ data.db 2>/dev/null || true
-
+            
             if ! git diff --cached --quiet; then
-              git pull origin main --rebase  # Dùng rebase thay vì no-rebase để tránh merge commit
-              git commit -m "📌 Update $(date +'%H:%M')"
-              
-              # Thử push tối đa 3 lần nếu bị lỗi
-              for retry in {1..3}; do
-                if git push origin main; then
-                  echo "🔼 Push thành công ($i/300)"
-                  break
-                else
-                  echo "🔄 Thử lại push ($retry/3)..."
-                  sleep 5
-                  git pull origin main --rebase
-                fi
-              done
+              git commit -m "📌 Auto update $(date +'%H:%M:%S')"
+              git pull origin main --rebase
+              git push origin main
+              echo "✅ Đã push thay đổi lên repo"
+            else
+              echo "⏭ Không có thay đổi, bỏ qua"
             fi
 
             sleep 60
