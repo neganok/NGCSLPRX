@@ -1,8 +1,8 @@
-name: Proxy Master (Auto Update)
+name: Proxy Master Ultra Stable
 
 on:
   schedule:
-    - cron: '0 */5 * * *'  # Chạy mỗi 5 giờ (300 phút)
+    - cron: '0 */5 * * *'
   workflow_dispatch:
 
 jobs:
@@ -10,8 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: 🚀 Khởi chạy Proxy Service
+        with:
+          fetch-depth: 0  # Quan trọng: lấy toàn bộ lịch sử git
+
+      - name: 🛠️ Thiết lập ban đầu
+        run: |
+          # Cấu hình git chống lỗi
+          git config --global user.name "neganok"
+          git config --global user.email "hackersvn1@gmail.com"
+          git config --global http.postBuffer 524288000
+          git config --global core.autocrlf false
+          git config --global gc.auto 0  # TẮT garbage collection
+          
+          # Tạo thư mục nếu chưa có
+          mkdir -p Proxies
+
+      - name: 🐍 Khởi động service
         run: |
           python3 -m venv venv
           source venv/bin/activate
@@ -20,36 +34,46 @@ jobs:
           nohup python3 start.py > proxy.log 2>&1 &
           sleep 10
 
-      - name: 🔄 Cập nhật Proxy List
+      - name: 🔄 Quy trình cập nhật an toàn
         run: |
-          git config --global user.name "neganok"
-          git config --global user.email "hackersvn1@gmail.com"
-          
-          # Tính toán số lần lặp (5 giờ = 300 phút = 18000 giây)
-          # Mỗi lần lặp tốn ~65s (60s sleep + 5s xử lý)
-          TOTAL_ITERATIONS=$(( (300*60) / 65 ))  # ≈ 276 lần
-          echo "🔄 Sẽ chạy $TOTAL_ITERATIONS lần (mỗi 65s)"
-          
-          for i in $(seq 1 $TOTAL_ITERATIONS); do
-            echo "🔄 Lần $i/$TOTAL_ITERATIONS - $(date '+%H:%M:%S')"
+          # Tính toán số lần lặp (5h = 300 phút ≈ 270 lần)
+          for i in {1..270}; do
+            echo "🔄 Lần $i/270 - $(date '+%H:%M:%S')"
             
             # Tải proxy
-            mkdir -p Proxies
             for type in http https socks4 socks5; do
-              curl -s "http://127.0.0.1:8000/proxy/$type?time=3&minutes=15&format=text" -o "Proxies/$type.txt" || true
+              curl -s --retry 3 "http://127.0.0.1:8000/proxy/$type?time=3&minutes=15&format=text" -o "Proxies/$type.txt" || true
             done
 
-            # Xử lý Git
-            git add Proxies/ data.db  # Đã thêm data.db
+            # QUY TRÌNH GIT AN TOÀN
+            # 1. Luôn reset về trạng thái sạch
+            git reset --hard HEAD
+            git clean -fd
             
-            if git diff --cached --quiet; then
-              echo "⏭️ Không có thay đổi"
+            # 2. Luôn pull trước
+            git pull origin main
+            
+            # 3. Kiểm tra thay đổi
+            git add Proxies/ data.db
+            
+            if ! git diff --cached --quiet; then
+              # 4. Commit đơn giản
+              git commit -m "📌 Update $(date +'%Y-%m-%d %H:%M')" || true
+              
+              # 5. Push với retry
+              for retry in {1..3}; do
+                if git push origin main; then
+                  echo "✅ Đã lưu thay đổi"
+                  break
+                else
+                  echo "🔄 Thử lại push ($retry/3)..."
+                  sleep 5
+                  git pull origin main
+                fi
+              done
             else
-              git commit -m "🔄 Update Proxy + DB $(date +'%H:%M')" --allow-empty
-              git pull origin main --no-rebase
-              git push origin main
-              echo "✅ Đã cập nhật"
+              echo "⏭️ Không có thay đổi"
             fi
             
-            sleep 60  # Chờ 60s
+            sleep 60
           done
