@@ -2,47 +2,74 @@ name: Proxy Master (Auto Update)
 
 on:
   schedule:
-    - cron: '0 */5 * * *'  # Chạy mỗi 5 giờ
-  workflow_dispatch:        # Cho phép chạy thủ công
+    - cron: '0 */5 * * *'  # Runs every 5 hours
+  workflow_dispatch:        # Allows manual triggering
 
 jobs:
-  update:
+  update-proxy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      
-      - name: 🚀 Khởi chạy Proxy Service
+      # Step 1: Checkout repository
+      - name: 🔄 Checkout code repository
+        uses: actions/checkout@v4
+        
+      # Step 2: Setup Python environment
+      - name: 🐍 Setup Python virtual environment
         run: |
           python3 -m venv venv
           source venv/bin/activate
           pip install -r requirements.txt
+          
+      # Step 3: Start proxy service
+      - name: 🚀 Start Proxy Service
+        run: |
           pkill -f "python3 start.py" || true
           nohup python3 start.py > proxy.log 2>&1 &
           sleep 10
-
-      - name: 🔄 Cập nhật Proxy List
+          
+      # Step 4: Configure Git
+      - name: ⚙️ Configure Git settings
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           
+      # Step 5: Main proxy update loop
+      - name: 🔄 Continuous Proxy Update (60s interval)
+        run: |
           for i in {1..300}; do
-            echo "🔄 Lần $i/300 - $(date '+%H:%M:%S')"
+            echo "🔄 Update cycle $i/300 - $(date '+%H:%M:%S')"
             
-            # Tải proxy
-            for type in http https socks4 socks5; do
-              curl -s "http://127.0.0.1:8000/proxy/$type?time=3&minutes=15&format=text" -o "Proxies/$type.txt" || true
-            done
+            # Download all proxy types
+            - name: ⬇️ Download proxy lists
+              for type in http https socks4 socks5; do
+                curl -s "http://127.0.0.1:8000/proxy/$type?time=3&minutes=15&format=text" -o "Proxies/$type.txt" || true
+              done
 
-            # Git đơn giản, không rebase, không pull phức tạp
-            git add Proxies/ data.db
-            if git diff --cached --quiet; then
-              echo "⏭️ Không có thay đổi"
-            else
-              git commit -m "🔄 Update Proxy $(date +'%H:%M')" --allow-empty
-              git pull origin main --no-rebase
-              git push origin main
-              echo "✅ Đã cập nhật"
+            # Commit and push changes (only if there are changes)
+            - name: 💾 Commit and push updates
+              git add Proxies/ data.db
+              if git diff --cached --quiet; then
+                echo "⏭️ No changes detected"
+              else
+                git commit -m "🔄 Auto Update Proxy $(date +'%Y-%m-%d %H:%M')" --allow-empty
+                git pull origin main --no-rebase
+                git push origin main
+                echo "✅ Successfully updated proxy lists"
+              fi
+            
+            # Special handling for data.db (every 60 minutes)
+            if (( i % 60 == 0 )); then
+              - name: 🗃️ Process data.db (60-minute interval)
+                git add data.db
+                if git diff --cached --quiet; then
+                  echo "⏭️ No changes in data.db"
+                else
+                  git commit -m "🔄 Update data.db $(date +'%H:%M')" --allow-empty
+                  git pull origin main --no-rebase
+                  git push origin main
+                  echo "✅ Successfully updated data.db"
+                fi
             fi
             
-            sleep 60  # Chờ 60s giữa các lần
+            sleep 60  # Wait 60 seconds between cycles
           done
