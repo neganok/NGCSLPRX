@@ -2,8 +2,8 @@ name: Proxy Master (Auto Update)
 
 on:
   schedule:
-    - cron: '0 */5 * * *'  # Chạy mỗi 5 giờ
-  workflow_dispatch:        # Cho phép chạy thủ công
+    - cron: '0 */5 * * *'  # Chạy mỗi 5 giờ (300 phút)
+  workflow_dispatch:
 
 jobs:
   update:
@@ -25,24 +25,31 @@ jobs:
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           
-          for i in {1..150}; do
-            echo "🔄 Lần $i/150 - $(date '+%H:%M:%S')"
+          # Tính toán số lần lặp (5 giờ = 300 phút = 18000 giây)
+          # Mỗi lần lặp tốn ~65s (60s sleep + 5s xử lý)
+          TOTAL_ITERATIONS=$(( (300*60) / 65 ))  # ≈ 276 lần
+          echo "🔄 Sẽ chạy $TOTAL_ITERATIONS lần (mỗi 65s)"
+          
+          for i in $(seq 1 $TOTAL_ITERATIONS); do
+            echo "🔄 Lần $i/$TOTAL_ITERATIONS - $(date '+%H:%M:%S')"
             
             # Tải proxy
+            mkdir -p Proxies
             for type in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$type?time=3&minutes=15&format=text" -o "Proxies/$type.txt" || true
             done
 
-            # Git đơn giản, không rebase, không pull phức tạp
-            git add Proxies/
+            # Xử lý Git
+            git add Proxies/ data.db  # Đã thêm data.db
+            
             if git diff --cached --quiet; then
               echo "⏭️ Không có thay đổi"
             else
-              git commit -m "🔄 Update Proxy $(date +'%H:%M')" --allow-empty
+              git commit -m "🔄 Update Proxy + DB $(date +'%H:%M')" --allow-empty
               git pull origin main --no-rebase
               git push origin main
               echo "✅ Đã cập nhật"
             fi
             
-            sleep 60  # Chờ 60s giữa các lần
+            sleep 60  # Chờ 60s
           done
