@@ -11,69 +11,70 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 300  # 5 giờ = 300 phút
+    timeout-minutes: 300  # 5 giờ
 
     steps:
       - name: Clean workspace
         run: |
+          # Xóa sạch mọi thứ trước khi bắt đầu
           sudo rm -rf *
-          
+          mkdir -p Proxies
+
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0  # Lấy toàn bộ lịch sử
 
-      - name: Start service
+      - name: Setup environment
         run: |
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
-          sleep 10
+          sleep 15
 
-      - name: Continuous updater
+      - name: Rock-solid updater
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          mkdir -p Proxies
 
-          # Bắt đầu đếm thời gian
-          START_TIME=$(date +%s)
-          END_TIME=$((START_TIME + 18000))  # 5 giờ = 18000 giây
-          ITERATION=0
+          # Bắt đầu timer
+          START=$(date +%s)
+          END=$((START + 18000))  # 5 tiếng
+          COUNT=0
 
-          while [ $(date +%s) -lt $END_TIME ]; do
-            ITERATION=$((ITERATION + 1))
-            echo "⏳ Lần cập nhật thứ $ITERATION"
-            
-            # Lấy proxies
+          while [ $(date +%s) -lt $END ]; do
+            COUNT=$((COUNT + 1))
+            echo "🚀 Lần chạy thứ $COUNT - $(date +'%H:%M:%S')"
+
+            # Tải proxies
             for t in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
 
-            # Kiểm tra thay đổi
-            git add Proxies/ data.db
+            # Xử lý Git cực kỳ chắc chắn
+            git add --all Proxies/ data.db
             
             if ! git diff --cached --quiet; then
-              git commit -m "🔄 Update $(date +'%H:%M:%S')"
+              # Tạo commit mới
+              git commit -m "🔥 Update $(date +'%H:%M:%S')"
               
-              # Push với retry
-              for retry in {1..3}; do
-                if git pull --rebase origin main && git push origin main; then
-                  echo "✅ Đã push thành công"
+              # Push với cơ chế phục hồi
+              for RETRY in {1..5}; do
+                git fetch origin
+                git reset --hard origin/main
+                if git push origin main; then
+                  echo "✅ THÀNH CÔNG sau $RETRY lần thử"
                   break
                 else
-                  echo "🔄 Thử lại push (lần $retry/3)"
-                  sleep 5
-                  git reset --hard HEAD
+                  echo "🔄 Thử lại lần $RETRY..."
+                  sleep 10
+                  git reset --hard HEAD^
                 fi
               done
             else
               echo "⏭ Không có thay đổi"
             fi
 
-            # Tính thời gian còn lại
-            REMAINING=$((END_TIME - $(date +%s)))
-            echo "⏱ Thời gian còn lại: $((REMAINING/60)) phút"
-            
-            sleep 60  # Chờ 60s
+            # Chờ 60s
+            sleep 60
           done
-          
-          echo "🎯 Đã hoàn thành 5 giờ cập nhật"
+
+          echo "🎉 HOÀN TẤT sau 5 giờ!"
