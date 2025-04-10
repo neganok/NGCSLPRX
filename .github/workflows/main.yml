@@ -19,6 +19,11 @@ jobs:
           source env/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
+          
+          # Đảm bảo không có process cũ đang chạy
+          pkill -f "python3 start.py" || true
+          sleep 2
+          
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
           echo "✅ Đã hoàn thành thiết lập môi trường"
@@ -30,36 +35,50 @@ jobs:
           echo "⚙️ Đang cấu hình Git..."
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          # Cấu hình git để tránh lỗi
+          git config --global http.postBuffer 524288000
+          git config --global core.compression 0
           echo "✅ Đã hoàn thành khởi tạo"
 
-      - name: 🔄 Cập nhật Proxy
+      - name: 🔄 Cập nhật Proxy (Ổn định)
         run: |
           echo "🔄 Bắt đầu chu kỳ cập nhật proxy (150 lần lặp)"
           for i in {1..150}; do
             echo "🕒 Lần lặp thứ $i/150 - $(date '+%H:%M:%S')"
             
-            # Tải proxy
+            # Tải proxy với cơ chế dự phòng
             echo "⬇️ Đang tải danh sách proxy..."
             for t in http https socks4 socks5; do
-              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
+              curl -s --retry 3 "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
               echo "  - ${t}.txt có $(wc -l < "Proxies/$t.txt" || echo 0) proxy"
             done
 
-            # Thao tác với Git
+            # Thao tác Git an toàn
             echo "💾 Đang lưu thay đổi..."
             git add Proxies/ data.db
             
             if ! git diff --cached --quiet; then
               echo "📌 Đang commit thay đổi..."
-              git commit -m "📌 Cập nhật lúc $(date +'%H:%M')"
-              echo "🚀 Đang đẩy thay đổi lên GitHub..."
-              git pull origin main && git push origin main
-              echo "✅ Đã đẩy thành công"
+              git commit -m "📌 Cập nhật lúc $(date +'%H:%M') - Lần $i" || echo "⚠️ Commit không thành công, tiếp tục..."
+              
+              # Thử push với cơ chế retry
+              for retry in {1..3}; do
+                echo "🔄 Thử push lần $retry..."
+                if git pull --rebase origin main && git push origin main; then
+                  echo "✅ Đã đẩy thành công"
+                  break
+                else
+                  echo "❌ Lỗi khi push, thử lại sau 5s..."
+                  sleep 5
+                  git rebase --abort || true
+                  git reset --hard HEAD~1 || true
+                fi
+              done
             else
               echo "⏭️ Không phát hiện thay đổi"
             fi
 
-            echo "⏳ Đợi 120 giây..."
-            sleep 120
+            echo "⏳ Đợi 60 giây..."
+            sleep 60
           done
           echo "🎉 Đã hoàn thành tất cả lần lặp"
