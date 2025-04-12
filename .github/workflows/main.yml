@@ -1,4 +1,4 @@
-name: Proxy Master Ultimate
+name: Proxy Master Final
 
 on:
   schedule:
@@ -18,11 +18,12 @@ jobs:
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
 
-      - name: Auto Push
+      - name: Cập nhật
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          
+          git config --global pull.rebase false  # Luôn dùng merge
+
           while true; do
             # Tải proxies
             mkdir -p Proxies
@@ -30,13 +31,14 @@ jobs:
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
 
-            # Đẩy TẤT CẢ thay đổi
+            # Xử lý git
             git add -A
-            git diff --cached --quiet || {
-              git commit -m "🔥 $(date +'%H:%M %d/%m')"
-              git pull && git push
-              echo "✅ Đã đẩy toàn bộ thay đổi"
-            }
+            if ! git diff --cached --quiet; then
+              git commit -m "📌 $(date +'%H:%M %d/%m')"
+              git pull origin main  # Luôn merge
+              git push origin main
+              echo "✅ Đã push: $(git diff --name-only HEAD~1 HEAD)"
+            fi
             
             sleep 60
           done
