@@ -3,14 +3,14 @@ name: Proxy Master
 on:
   schedule:
     - cron: '0 */5 * * *'
-  push:
-    paths: ['.github/workflows/*.yml']
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false  # Quan trọng: fix lỗi git
 
       - name: Setup
         run: |
@@ -18,23 +18,26 @@ jobs:
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
 
-      - name: Auto Update
+      - name: Update
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           
           while true; do
-            # Tải proxies
+            # Tải proxies và xử lý file
             mkdir -p Proxies
             for t in http https socks4 socks5; do
-              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
+              curl -m 15 -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
 
-            # Tự động add/commit/push mọi thay đổi
+            # Xử lý git cực kỳ ổn định
             git add -A
             if ! git diff --cached --quiet; then
               git commit -m "📦 Update $(date +'%H:%M %d/%m')"
-              git push origin main
+              until git push origin main; do
+                git pull --rebase origin main
+                sleep 1
+              done
             fi
             
             sleep 60
