@@ -1,53 +1,36 @@
-name: Proxy Master Lite
+name: Auto Proxy Updater
 
 on:
   schedule:
     - cron: '0 */5 * * *'
-  push:
-    paths: ['.github/workflows/*.yml']
-
-permissions:
-  contents: write
 
 jobs:
   update:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Khởi động
+      - name: Setup
         run: |
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
-          echo "✅ READY | $(date +'%H:%M:%S')"
 
-      - name: Auto Update
+      - name: Update and Push
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-
+          
           while true; do
-            # Đồng bộ repo
-            git reset --hard HEAD
-            git clean -fd -e '__pycache__'  # Bỏ qua pycache
-            git pull origin main
-
             # Tải proxies
             mkdir -p Proxies
             for t in http https socks4 socks5; do
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
 
-            # Xử lý thay đổi
+            # Tự động push mọi thay đổi
             git add -A
-            if git diff --cached --quiet; then
-              echo "\n⏭️ No changes | $(date +'%H:%M')"
-            else
-              git commit -m "🔄 Proxy update $(date +'%H:%M %d/%m')"
-              git push origin main && echo "\n✅ Pushed changes"
-            fi
+            git diff --cached --quiet || (git commit -m "🔄 Auto update $(date +'%H:%M %d/%m')" && git push origin main)
             
             sleep 60
           done
