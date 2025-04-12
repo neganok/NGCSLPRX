@@ -1,10 +1,8 @@
-name: Proxy Master Bulletproof
+name: Proxy Master
 
 on:
   schedule:
     - cron: '0 */5 * * *'
-  push:
-    paths: ['.github/workflows/*.yml']
 
 jobs:
   update:
@@ -12,30 +10,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Updater
+      - name: Khởi động
         run: |
-          # Cài đặt môi trường
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
 
-          # Thiết lập Git
+      - name: Cập nhật
+        run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           
           while true; do
-            # 1. Tải proxies
+            # Đồng bộ repo
+            git pull origin main
+
+            # Tải proxies
             mkdir -p Proxies
+            echo "🔄 Đang cập nhật proxies:"
             for t in http https socks4 socks5; do
-              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
+              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" && \
+              echo "  ✅ $t: $(wc -l < Proxies/$t.txt) proxy" || echo "  ❌ $t: Lỗi"
             done
 
-            # 2. Xử lý Git đơn giản nhưng mạnh mẽ
+            # Xử lý thay đổi
             git add -A
-            if ! git diff --cached --quiet; then
-              git commit -m "📦 Auto update $(date +'%H:%M')"
-              git pull origin main --no-rebase  # Sử dụng merge thay vì rebase
-              git push origin main
+            if git diff --cached --quiet; then
+              echo "⏩ Không có thay đổi"
+            else
+              git commit -m "📦 Cập nhật lúc $(date +'%H:%M %d/%m')"
+              git push origin main && echo "✅ Đã cập nhật thành công"
             fi
             
             sleep 60
