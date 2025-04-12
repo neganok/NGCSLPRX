@@ -15,23 +15,23 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
 
       - name: Khởi động hệ thống
         run: |
-          # Xóa cache và reset repo trước khi bắt đầu
-          git reset --hard
+          # Xóa cache và reset repo
+          git reset --hard HEAD
           git clean -fd
           git pull origin main
           
+          # Cài đặt môi trường
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
-          sleep 15
-          echo "🟢 Hệ thống đã sẵn sàng"
+          sleep 20
+          echo "🟢 Hệ thống sẵn sàng | $(date +'%H:%M:%S')"
 
       - name: Cập nhật tự động
         run: |
+          # Thiết lập Git
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           git config --global gc.auto 0
@@ -41,48 +41,65 @@ jobs:
             echo "\n═════════ $(date +'%H:%M:%S %d/%m/%Y') ═════════"
             
             # Đồng bộ repo
-            git pull origin main
-            
-            # Tải proxies
-            echo "🔷 TẢI PROXY MỚI"
+            git pull origin main || {
+              echo "🔴 Lỗi khi đồng bộ, thử lại..."
+              git reset --hard HEAD
+              git pull origin main
+            }
+
+            # Tải proxies với xử lý lỗi
+            echo "🔷 TẢI PROXY"
             mkdir -p Proxies
-            for t in http https socks4 socks5; do
-              echo "  ▸ Loại: $t"
-              if curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt"; then
-                count=$(grep -cve '^\s*$' "Proxies/$t.txt")
-                [ $count -eq 0 ] && echo "    ➤ Cảnh báo: 0 proxy" || echo "    ➤ Thành công: $count proxy"
-              else
-                echo "    ➤ Lỗi: Không thể tải"
-              fi
+            proxy_types=(http https socks4 socks5)
+            
+            for t in "${proxy_types[@]}"; do
+              echo "  ▸ $t:"
+              retry_count=0
+              max_retries=2
+              
+              while [ $retry_count -lt $max_retries ]; do
+                if curl -m 30 -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt"; then
+                  count=$(grep -cve '^\s*$' "Proxies/$t.txt" 2>/dev/null || echo 0)
+                  if [ $count -gt 0 ]; then
+                    echo "    ➤ $count proxy"
+                    break
+                  else
+                    echo "    ➤ Cảnh báo: File rỗng"
+                  fi
+                else
+                  retry_count=$((retry_count + 1))
+                  echo "    ➤ Lỗi tải (thử lại $retry_count/$max_retries)"
+                  sleep 5
+                fi
+              done
             done
 
-            # Xử lý git
+            # Xử lý Git
             git add -A
             changes=$(git diff --name-only --cached)
             
             if [ -n "$changes" ]; then
-              echo "\n🔷 PHÁT HIỆN THAY ĐỔI"
-              echo "$changes" | while read file; do
-                echo "  • $file"
-              done
+              echo "\n🔷 THAY ĐỔI:"
+              echo "$changes" | xargs -I{} echo "  • {}"
               
-              echo "\n🔷 ĐANG CẬP NHẬT"
-              git commit -m "🔄 Cập nhật lúc $(date +'%H:%M %d/%m')"
+              echo "\n🔷 COMMIT:"
+              git commit -m "🔄 Update $(date +'%H:%M %d/%m')" || echo "  ⚠️ Không commit được"
               
+              echo "\n🔷 PUSH:"
               for i in {1..3}; do
                 if git push origin main; then
-                  echo "  ✅ Đã cập nhật thành công!"
+                  echo "  ✅ Thành công"
                   break
                 else
-                  echo "  🔄 Lỗi khi push (thử lại $i/3)"
+                  echo "  🔄 Thử lại $i/3..."
                   git pull --rebase origin main
-                  sleep $((i*2))
+                  sleep $i
                 fi
               done
             else
-              echo "\n⏩ Không có thay đổi cần commit"
+              echo "\n⏩ Không có thay đổi"
             fi
             
-            echo "\n⏳ Chờ 60 giây..."
+            echo "\n⏳ Chờ 60s..."
             sleep 60
           done
