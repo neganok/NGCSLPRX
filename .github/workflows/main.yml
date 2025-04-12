@@ -1,4 +1,4 @@
-name: Proxy Master Ultimate
+name: Proxy Master Bulletproof
 
 on:
   schedule:
@@ -11,46 +11,31 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # Sử dụng token mặc định
 
-      - name: Setup
+      - name: Run Updater
         run: |
+          # Cài đặt môi trường
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
-          sleep 20
+          sleep 15
 
-      - name: Update Proxies
-        run: |
           # Thiết lập Git
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          git config --global pull.rebase true  # Luôn rebase khi pull
-
+          
           while true; do
-            # Tải proxies
+            # 1. Tải proxies
             mkdir -p Proxies
             for t in http https socks4 socks5; do
-              curl -m 20 -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
+              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
 
-            # Xử lý git siêu ổn định
+            # 2. Xử lý Git đơn giản nhưng mạnh mẽ
             git add -A
             if ! git diff --cached --quiet; then
-              git commit -m "📦 Update $(date +'%H:%M %d/%m')"
-              
-              # Push với cơ chế retry thông minh
-              for i in {1..5}; do
-                git pull origin main
-                if git push origin main; then
-                  echo "✅ Push thành công"
-                  break
-                else
-                  echo "🔄 Thử lại push ($i/5)..."
-                  git reset --hard HEAD
-                  sleep $i
-                fi
-              done
+              git commit -m "📦 Auto update $(date +'%H:%M')"
+              git pull origin main --no-rebase  # Sử dụng merge thay vì rebase
+              git push origin main
             fi
             
             sleep 60
