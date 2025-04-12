@@ -11,58 +11,70 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 300  # 5 tiếng
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # Tải toàn bộ lịch sử git để tránh lỗi
 
-      - name: Setup environment
+      - name: Cài đặt môi trường
         run: |
+          echo "🛠️ Đang cài đặt môi trường..."
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 10
+          echo "✅ Cài đặt môi trường hoàn tất!"
 
-      - name: Simple updater
+      - name: Cập nhật tự động
         run: |
+          echo "⚙️ Thiết lập thông tin Git..."
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           
-          # Reset và đồng bộ với remote trước khi bắt đầu
-          git remote update
-          git reset --hard origin/main
-          git clean -fd
-          
           COUNT=0
-          while [ $COUNT -lt 300 ]; do
+          while true; do
             COUNT=$((COUNT + 1))
-            echo "🔄 Lần chạy thứ $COUNT"
+            echo "\n🔁 BẮT ĐẦU LẦN CHẠY THỨ $COUNT - $(date +'%H:%M:%S %d/%m/%Y')"
             
             # Tải proxies
+            echo "📥 Đang tải proxies mới..."
             mkdir -p Proxies
             for t in http https socks4 socks5; do
-              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
+              echo "  ↳ Đang tải $t..."
+              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || echo "  ❌ Lỗi khi tải $t"
             done
             
-            # Thêm thời gian chờ ngẫu nhiên để giảm xung đột
-            sleep $((RANDOM % 10 + 1))
-            
-            # Thực hiện git operations với kiểm tra lỗi
+            # Xử lý Git
+            echo "🔄 Đang kiểm tra thay đổi..."
             git add Proxies/ data.db
-            if git diff --cached --quiet; then
-              echo "⚠️ Không có thay đổi"
-            else
-              git commit -m "Cập nhật tự động $(date +'%H:%M:%S')"
-              until git push origin main; do
-                echo "⚠️ Lỗi khi push, thử lại sau..."
-                git pull --rebase origin main
-                sleep 5
+            
+            if ! git diff --cached --quiet; then
+              echo "📝 Phát hiện thay đổi, đang tạo commit..."
+              git commit -m "🔄 Cập nhật tự động lúc $(date +'%H:%M:%S %d/%m/%Y')"
+              
+              echo "📤 Đang đẩy thay đổi lên GitHub..."
+              attempts=0
+              max_attempts=3
+              
+              while [ $attempts -lt $max_attempts ]; do
+                if git push origin main; then
+                  echo "✅ Đẩy thay đổi thành công!"
+                  break
+                else
+                  attempts=$((attempts + 1))
+                  echo "⚠️ Lỗi khi đẩy thay đổi (lần thử $attempts/$max_attempts)"
+                  
+                  if [ $attempts -lt $max_attempts ]; then
+                    echo "🔄 Đang đồng bộ lại với remote..."
+                    git pull --rebase origin main
+                    sleep 5
+                  else
+                    echo "❌ Đã thử $max_attempts lần nhưng không thành công"
+                  fi
+                fi
               done
-              echo "✅ Push thành công"
+            else
+              echo "⏩ Không có thay đổi, bỏ qua commit"
             fi
             
+            echo "⏳ Đợi 1 phút trước khi chạy lại..."
             sleep 60
           done
-          
-          echo "✅ Đã chạy đủ 5 tiếng"
