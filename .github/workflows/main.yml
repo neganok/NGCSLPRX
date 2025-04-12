@@ -1,4 +1,4 @@
-name: Proxy Master
+name: Proxy Master 
 
 on:
   schedule:
