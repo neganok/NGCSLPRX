@@ -54,9 +54,15 @@ jobs:
               curl -m 15 -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "$file" \
                 && echo "✅ $icon $t: $(wc -l < "$file") proxies (trước: ${counts_before[$t]})" \
                 || echo "❌ $icon Lỗi tải proxies loại $t"
-              
+
               counts_after[$t]=$(wc -l < "$file")
             done
+
+            # 🗃️ Bảo đảm file data.db được đẩy lên repo
+            if [ -f data.db ]; then
+              git add data.db
+              echo "📎 Đã thêm file data.db vào staging."
+            fi
 
             git add -A
 
@@ -66,7 +72,19 @@ jobs:
 
               commit_time=$(date +'%H:%M %d/%m')
               git commit -m "📦 Update $commit_time"
-              git pull --rebase origin main || echo "⚠️ Pull thất bại, tiếp tục push"
+
+              git pull --rebase origin main || {
+                echo "⚠️ Pull thất bại, kiểm tra và xử lý..."
+                if [ -d ".git/rebase-merge" ]; then
+                  echo "🧹 Đang xóa thư mục rebase-merge lỗi..."
+                  rm -rf .git/rebase-merge
+                  echo "🔁 Thử lại pull --rebase sau khi dọn dẹp..."
+                  git pull --rebase origin main || echo "❌ Pull vẫn lỗi, bỏ qua"
+                else
+                  echo "❌ Không thấy rebase-merge, bỏ qua"
+                fi
+              }
+
               git push origin main && echo "🚀 Đã đẩy thành công lúc $commit_time"
             else
               echo "🟢 Không có thay đổi nào, bỏ qua commit"
