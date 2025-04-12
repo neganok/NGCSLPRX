@@ -21,3 +21,13 @@ INFO:     127.0.0.1:44846 - "GET /proxy/http?time=3&minutes=15&format=text HTTP/
 INFO:     127.0.0.1:44862 - "GET /proxy/https?time=3&minutes=15&format=text HTTP/1.1" 200 OK
 INFO:     127.0.0.1:44876 - "GET /proxy/socks4?time=3&minutes=15&format=text HTTP/1.1" 200 OK
 INFO:     127.0.0.1:44884 - "GET /proxy/socks5?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51328 - "GET /proxy/http?time=3&minutes=5&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50614 - "GET /proxy/http?time=3&minutes=5&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43348 - "GET /proxy/http?time=3&minutes=5&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58958 - "GET /proxy/http?time=3&minutes=5&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60462 - "GET /proxy/http?time=3&minutes=5&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39560 - "GET /proxy/http?time=3&minutes=5&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56694 - "GET /proxy/http?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56704 - "GET /proxy/https?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56720 - "GET /proxy/socks4?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56722 - "GET /proxy/socks5?time=3&minutes=15&format=text HTTP/1.1" 200 OK
