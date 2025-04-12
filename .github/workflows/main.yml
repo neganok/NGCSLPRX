@@ -1,8 +1,10 @@
-name: Auto Proxy Updater
+name: Proxy Master 
 
 on:
   schedule:
     - cron: '0 */5 * * *'
+  push:
+    paths: ['.github/workflows/*.yml']
 
 jobs:
   update:
