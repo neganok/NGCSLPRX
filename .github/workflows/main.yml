@@ -1,4 +1,4 @@
-name: Proxy Master 
+name: 🛡️ Proxy Master
 
 on:
   schedule:
@@ -14,52 +14,64 @@ jobs:
         with:
           ref: ${{ github.ref }}
 
-      - name: Setup
+      - name: ⚙️ Setup Environment
         run: |
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 20
 
-      - name: Update Proxies
+      - name: 🔁 Update Proxies Loop
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           git config --global gc.auto 0
-          
-          echo "🚀 Bắt đầu cập nhật proxies lúc $(date)"
-          temp_dir=$(mktemp -d)
-          cp -r . "$temp_dir"
-          cd "$temp_dir"
 
-          git fetch origin main
-          git reset --hard origin/main
+          while true; do
+            echo ""
+            echo "🕒 Bắt đầu vòng cập nhật mới lúc $(date '+%H:%M:%S %d-%m-%Y')"
+            temp_dir=$(mktemp -d)
+            cp -r . "$temp_dir"
+            cd "$temp_dir"
 
-          mkdir -p Proxies
-          declare -A counts_before counts_after
+            git fetch origin main
+            git reset --hard origin/main
 
-          for t in http https socks4 socks5; do
-            file="Proxies/$t.txt"
-            [ -f "$file" ] && counts_before[$t]=$(wc -l < "$file") || counts_before[$t]=0
+            mkdir -p Proxies
+            declare -A counts_before counts_after
 
-            curl -m 15 -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "$file" || echo "❌ Lỗi tải $t proxies"
-            
-            counts_after[$t]=$(wc -l < "$file")
-            echo "✅ $t: ${counts_after[$t]} proxies (trước: ${counts_before[$t]})"
+            for t in http https socks4 socks5; do
+              case "$t" in
+                http)  icon="🌐";;
+                https) icon="🔐";;
+                socks4) icon="🧦";;
+                socks5) icon="🧦";;
+              esac
+
+              file="Proxies/$t.txt"
+              [ -f "$file" ] && counts_before[$t]=$(wc -l < "$file") || counts_before[$t]=0
+
+              echo "🔄 Đang tải $icon proxies [$t]..."
+              curl -m 15 -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "$file" \
+                && echo "✅ $icon $t: $(wc -l < "$file") proxies (trước: ${counts_before[$t]})" \
+                || echo "❌ $icon Lỗi tải proxies loại $t"
+              
+              counts_after[$t]=$(wc -l < "$file")
+            done
+
+            git add -A
+
+            if ! git diff --cached --quiet; then
+              echo "📦 Phát hiện thay đổi:"
+              git diff --cached --name-only
+
+              commit_time=$(date +'%H:%M %d/%m')
+              git commit -m "📦 Update $commit_time"
+              git pull --rebase origin main || echo "⚠️ Pull thất bại, tiếp tục push"
+              git push origin main && echo "🚀 Đã đẩy thành công lúc $commit_time"
+            else
+              echo "🟢 Không có thay đổi nào, bỏ qua commit"
+            fi
+
+            echo "🛌 Nghỉ 60 giây trước vòng tiếp theo..."
+            sleep 60
           done
-
-          git add -A
-
-          if ! git diff --cached --quiet; then
-            echo "📦 Phát hiện thay đổi các file sau:"
-            git diff --cached --name-only
-
-            commit_time=$(date +'%H:%M %d/%m')
-            git commit -m "📦 Update $commit_time"
-            git pull --rebase origin main || echo "⚠️ Pull thất bại, thử lại sau"
-            git push origin main && echo "✅ Đã đẩy commit thành công lúc $commit_time"
-          else
-            echo "🟢 Không có thay đổi nào, bỏ qua commit"
-          fi
-
-          echo "⏳ Chờ 60s trước khi vòng lặp tiếp theo..."
-          sleep 60
