@@ -13,77 +13,80 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code (Optimized)
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # QUAN TRỌNG: Giải quyết lỗi unstable object data
+          # Bỏ fetch-depth để tránh treo
+          ref: ${{ github.ref }}
+          path: main-repo  # Thêm path để tránh xung đột
 
       - name: Cài đặt môi trường
+        working-directory: ./main-repo  # Làm việc trong thư mục đã checkout
         run: |
           echo "🛠️ Đang cài đặt môi trường..."
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 10
-          echo "✅ Cài đặt môi trường hoàn tất!"
+          echo "✅ Cài đặt hoàn tất!"
 
       - name: Cập nhật tự động
+        working-directory: ./main-repo
         run: |
-          echo "⚙️ Thiết lập thông tin Git..."
+          # Thiết lập git an toàn
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          git config --global gc.auto 0  # Tắt GC để tránh lỗi
           
-          # Reset toàn bộ repo trước khi bắt đầu
-          git reset --hard
+          # Đồng bộ repo trước khi làm việc
+          git remote update
+          git reset --hard origin/main
           git clean -fd
-          git pull origin main
 
           COUNT=0
           while true; do
             COUNT=$((COUNT + 1))
-            echo "\n🔁 BẮT ĐẦU LẦN CHẠY THỨ $COUNT - $(date +'%H:%M:%S %d/%m/%Y')"
+            echo "\n🔁 [LẦN $COUNT] Bắt đầu lúc $(date +'%H:%M:%S %d/%m/%Y')"
             
-            # Tải proxies
-            echo "📥 Đang tải proxies mới..."
+            # Tải proxies với hiển thị số lượng
+            echo "📥 Tải proxies:"
             mkdir -p Proxies
             for t in http https socks4 socks5; do
-              echo "  ↳ Đang tải $t..."
-              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || echo "  ❌ Lỗi khi tải $t"
-              if [ -f "Proxies/$t.txt" ]; then
+              echo "  ↳ $t..."
+              if curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt"; then
                 count=$(wc -l < "Proxies/$t.txt")
-                echo "  ➡️ Đã tải $count proxy $t"
+                echo "     ✔️ $count proxy"
+              else
+                echo "     ❌ Lỗi"
               fi
             done
-            
-            # Xử lý Git
-            echo "🔄 Đang kiểm tra thay đổi..."
-            git add Proxies/ data.db
-            
-            # Kiểm tra chi tiết từng file thay đổi
-            changed_files=$(git diff --cached --name-only)
+
+            # Xử lý git cực kỳ chắc chắn
+            changed_files=$(git status -uno --porcelain)
             if [ -n "$changed_files" ]; then
-              echo "📝 Phát hiện thay đổi các file:"
-              for file in $changed_files; do
+              echo "📝 File thay đổi:"
+              git diff --name-only --cached | while read file; do
                 echo "  • $file"
               done
+
+              echo "💾 Đang commit..."
+              git add -A
+              git commit -m "🔄 Update $(date +'%H:%M:%S %d/%m') [${COUNT}]"
               
-              echo "💾 Đang tạo commit..."
-              git commit -m "🔄 Cập nhật tự động lúc $(date +'%H:%M:%S %d/%m/%Y')"
-              
-              # Push với cơ chế retry mạnh mẽ
-              echo "🚀 Đang đẩy thay đổi lên GitHub..."
-              for attempt in {1..5}; do
+              # Push với retry thông minh
+              for i in {1..5}; do
                 if git push origin main; then
-                  echo "✅ Đẩy thành công sau $attempt lần thử!"
+                  echo "✅ Push thành công!"
                   break
                 else
-                  echo "⚠️ Lỗi push (lần thử $attempt/5)"
+                  echo "🔄 Lỗi push (thử lại $i/5)..."
                   git pull --rebase origin main
-                  sleep $((attempt * 2))  # Tăng thời gian chờ mỗi lần thử
+                  sleep $i
                 fi
               done
             else
-              echo "⏩ Không có thay đổi, bỏ qua commit"
+              echo "⏩ Không có thay đổi"
             fi
             
-            echo "⏳ Đợi 1 phút trước khi chạy lại..."
+            echo "⏳ Chờ 60s..."
             sleep 60
           done
