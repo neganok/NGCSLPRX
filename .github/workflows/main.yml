@@ -43,8 +43,7 @@ jobs:
               case "$t" in
                 http)  icon="🌐";;
                 https) icon="🔐";;
-                socks4) icon="🧦";;
-                socks5) icon="🧦";;
+                socks4|socks5) icon="🧦";;
               esac
 
               file="Proxies/$t.txt"
@@ -58,12 +57,6 @@ jobs:
               counts_after[$t]=$(wc -l < "$file")
             done
 
-            # 🗃️ Bảo đảm file data.db được đẩy lên repo
-            if [ -f data.db ]; then
-              git add data.db
-              echo "📎 Đã thêm file data.db vào staging."
-            fi
-
             git add -A
 
             if ! git diff --cached --quiet; then
@@ -76,9 +69,8 @@ jobs:
               git pull --rebase origin main || {
                 echo "⚠️ Pull thất bại, kiểm tra và xử lý..."
                 if [ -d ".git/rebase-merge" ]; then
-                  echo "🧹 Đang xóa thư mục rebase-merge lỗi..."
+                  echo "🧹 Xóa rebase lỗi..."
                   rm -rf .git/rebase-merge
-                  echo "🔁 Thử lại pull --rebase sau khi dọn dẹp..."
                   git pull --rebase origin main || echo "❌ Pull vẫn lỗi, bỏ qua"
                 else
                   echo "❌ Không thấy rebase-merge, bỏ qua"
