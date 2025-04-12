@@ -3,6 +3,8 @@ name: Proxy Master Ultimate
 on:
   schedule:
     - cron: '0 */5 * * *'
+  push:
+    paths: ['.github/workflows/*.yml']
 
 jobs:
   update:
