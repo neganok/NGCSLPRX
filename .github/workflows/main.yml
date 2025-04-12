@@ -40,6 +40,13 @@ jobs:
             for t in http https socks4 socks5; do
               echo "  ↳ Đang tải $t..."
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || echo "  ❌ Lỗi khi tải $t"
+              # Đếm số lượng proxy
+              if [ -f "Proxies/$t.txt" ]; then
+                count=$(wc -l < "Proxies/$t.txt")
+                echo "  ➡️ Đã tải $count proxy $t"
+              else
+                echo "  ➡️ Không có proxy $t nào"
+              fi
             done
             
             # Xử lý Git
