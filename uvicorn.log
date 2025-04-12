@@ -1,0 +1,10 @@
+INFO:     Will watch for changes in these directories: ['/home/runner/work/NGCSLPRX/NGCSLPRX']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [1960] using StatReload
+INFO:     Started server process [1962]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:59472 - "GET /proxy/http?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59488 - "GET /proxy/https?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59498 - "GET /proxy/socks4?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59508 - "GET /proxy/socks5?time=3&minutes=15&format=text HTTP/1.1" 200 OK
