@@ -3,7 +3,6 @@ name: Proxy Master
 on:
   schedule:
     - cron: '0 */5 * * *'
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,82 +12,66 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-          clean: true
+      - uses: actions/checkout@v4
 
-      - name: Khởi động hệ thống
+      - name: Cài đặt môi trường
         run: |
-          # Reset toàn bộ repo
-          git reset --hard HEAD
-          git clean -fdx
-          git pull --force origin main
-          
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
-          echo "🟢 Hệ thống sẵn sàng | $(date +'%H:%M:%S')"
+          echo "🟢 Hệ thống đã sẵn sàng | $(date +'%H:%M:%S')"
 
-      - name: Cập nhật tự động
+      - name: Cập nhật proxy
         run: |
-          # Thiết lập Git chống lỗi
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          git config --global gc.auto 0
-          git config --global pack.threads 1
 
           while true; do
-            # Header
+            # Hiển thị thời gian
             echo "\n═════════ $(date +'%H:%M:%S %d/%m/%Y') ═════════"
             
-            # Đồng bộ repo cực mạnh
-            git fetch --prune --progress
-            git reset --hard origin/main
-            git clean -fdx
+            # Đồng bộ repo
+            git pull origin main
             
             # Tải proxies
-            echo "🔷 TẢI PROXY"
+            echo "🔷 KẾT QUẢ TẢI PROXY:"
             mkdir -p Proxies
             for t in http https socks4 socks5; do
-              echo "  ▸ $t:"
-              if curl -m 15 -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt"; then
-                count=$(grep -cve '^\s*$' "Proxies/$t.txt" 2>/dev/null || echo 0)
-                echo "    ➤ $count proxy"
+              if curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt"; then
+                count=$(grep -cve '^\s*$' "Proxies/$t.txt")
+                echo "  ▸ $t: $count proxy"
               else
-                echo "    ➤ Lỗi tải"
+                echo "  ▸ $t: ❌ KHÔNG TẢI ĐƯỢC"
               fi
             done
 
-            # Xử lý Git siêu chắc chắn
+            # Xử lý git
             git add -A
             changes=$(git diff --name-only --cached)
             
             if [ -n "$changes" ]; then
-              echo "\n🔷 THAY ĐỔI:"
+              echo "\n🔷 FILE THAY ĐỔI:"
               echo "$changes" | while read file; do
                 echo "  • $file"
               done
               
-              git commit -m "🔄 Update $(date +'%H:%M %d/%m')" || true
+              git commit -m "🔄 Cập nhật lúc $(date +'%H:%M %d/%m')"
               
-              echo "\n🔷 PUSH:"
+              # Push với retry
               for i in {1..3}; do
-                git fetch --prune
                 if git push origin main; then
-                  echo "  ✅ Thành công"
+                  echo "\n✅ CẬP NHẬT THÀNH CÔNG!"
                   break
                 else
-                  echo "  🔄 Thử lại $i/3..."
-                  git reset --hard origin/main
-                  sleep $i
+                  echo "\n⚠️ LỖI PUSH - THỬ LẠI $i/3"
+                  git pull --rebase origin main
+                  sleep 2
                 fi
               done
             else
-              echo "\n⏩ Không có thay đổi"
+              echo "\n⏩ KHÔNG CÓ THAY ĐỔI"
             fi
             
-            echo "\n⏳ Chờ 60s..."
+            echo "\n⏳ Đợi 60 giây..."
             sleep 60
           done
