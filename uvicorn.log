@@ -1,12 +1,10 @@
 INFO:     Will watch for changes in these directories: ['/home/runner/work/NGCSLPRX/NGCSLPRX']
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [1940] using StatReload
-INFO:     Started server process [1942]
+INFO:     Started reloader process [1948] using StatReload
+INFO:     Started server process [1951]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     127.0.0.1:43836 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46204 - "GET /proxy/http?time=3&minutes=5&format=text HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46214 - "GET /proxy/http?time=3&minutes=15&format=text HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46224 - "GET /proxy/https?time=3&minutes=15&format=text HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46228 - "GET /proxy/socks4?time=3&minutes=15&format=text HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46236 - "GET /proxy/socks5?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42210 - "GET /proxy/http?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42216 - "GET /proxy/https?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42224 - "GET /proxy/socks4?time=3&minutes=15&format=text HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42236 - "GET /proxy/socks5?time=3&minutes=15&format=text HTTP/1.1" 200 OK
