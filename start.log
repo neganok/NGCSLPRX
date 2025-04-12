@@ -7,3 +7,12 @@
 2025-04-12 03:39:59,399 - INFO - Process ['python3', 'http-proxy-relay.py'] started...
 2025-04-12 03:40:00,403 - DEBUG - Starting new HTTP connection (1): 0.0.0.0:8000
 2025-04-12 03:40:00,404 - WARNING - API not reachable, attempt 1 of 3. Retrying in 5 seconds...
+2025-04-12 03:40:10,405 - DEBUG - Starting new HTTP connection (1): 0.0.0.0:8000
+2025-04-12 03:40:10,406 - DEBUG - http://0.0.0.0:8000 "GET / HTTP/1.1" 200 2229
+2025-04-12 03:40:10,406 - INFO - API is running successfully.
+2025-04-12 03:40:10,407 - DEBUG - Starting new HTTP connection (1): 127.0.0.1:3333
+2025-04-12 03:40:10,933 - DEBUG - http://127.0.0.1:3333 "GET http://httpbin.org/ip HTTP/1.1" 200 33
+2025-04-12 03:40:10,933 - INFO - Proxy relay is running successfully.
+2025-04-12 03:40:10,933 - INFO - PROXY MACHINE READY! 
+API: http://0.0.0.0:8000 
+http-proxy: http://0.0.0.0:3333 
