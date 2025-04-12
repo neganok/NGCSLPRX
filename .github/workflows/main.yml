@@ -13,80 +13,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          path: main-repo
+      - uses: actions/checkout@v4
 
-      - name: Cài đặt môi trường
-        working-directory: ./main-repo
+      - name: Khởi tạo môi trường
         run: |
-          echo "🛠️ Đang cài đặt môi trường..."
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 10
-          echo "✅ Cài đặt hoàn tất!"
 
-      - name: Cập nhật tự động
-        working-directory: ./main-repo
+      - name: Auto Update Proxy
         run: |
-          # Thiết lập git
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          git config --global gc.auto 0
-          
-          # Reset repo
-          git fetch origin
-          git reset --hard origin/main
-          git clean -fd
 
-          COUNT=0
           while true; do
-            COUNT=$((COUNT + 1))
-            echo "\n═════════ LẦN $COUNT - $(date +'%H:%M:%S %d/%m/%Y') ═════════"
+            # Header
+            echo "\n═════════ $(date +'%H:%M:%S %d/%m/%Y') ═════════"
             
             # Tải proxies
-            echo "🔷 TẢI PROXIES"
+            echo "🔷 DANH SÁCH PROXY MỚI"
             mkdir -p Proxies
             for t in http https socks4 socks5; do
-              echo "  ▸ Loại: $t"
               if curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt"; then
-                count=$(wc -l < "Proxies/$t.txt")
-                echo "    ➤ Thành công: $count proxy"
+                count=$(grep -cve '^\s*$' "Proxies/$t.txt")
+                echo "  ▸ $t: $count proxy"
               else
-                echo "    ➤ Thất bại: Không tải được"
+                echo "  ▸ $t: ❌ LỖI"
               fi
             done
 
-            # Kiểm tra thay đổi
-            echo "\n🔷 KIỂM TRA THAY ĐỔI"
+            # Xử lý Git
             git add -A
             changes=$(git diff --name-only --cached)
             
-            if [ -z "$changes" ]; then
-              echo "  ▸ Không có thay đổi"
-            else
-              echo "  ▸ File thay đổi:"
+            if [ -n "$changes" ]; then
+              echo "\n🔷 THAY ĐỔI ĐƯỢC PHÁT HIỆN"
               echo "$changes" | while read file; do
-                echo "    • $file"
+                echo "  • $file"
               done
               
-              # Commit và push
-              echo "\n🔷 COMMIT & PUSH"
-              git commit -m "🔄 Update $(date +'%H:%M:%S %d/%m') [${COUNT}]" > /dev/null
-              
-              for i in {1..3}; do
-                if git push origin main; then
-                  echo "  ▸ Push thành công!"
-                  break
-                else
-                  echo "  ▸ Lỗi push (thử lại $i/3)"
-                  git pull --rebase origin main
-                  sleep $i
-                fi
-              done
+              git commit -m "🔄 Cập nhật lúc $(date +'%H:%M %d/%m')" > /dev/null
+              git push origin main && echo "\n✅ CẬP NHẬT THÀNH CÔNG!"
+            else
+              echo "\n⏩ Không có thay đổi"
             fi
             
-            echo "\n⏳ Chờ 60 giây..."
             sleep 60
           done
