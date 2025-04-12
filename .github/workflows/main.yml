@@ -3,42 +3,27 @@ name: Proxy Master
 on:
   schedule:
     - cron: '0 */5 * * *'
-  push:
-    paths: ['.github/workflows/*.yml']
 
 jobs:
   update:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Environment
-        run: |
+      - run: |
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
-
-      - name: Auto Updater
-        run: |
+          
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           
           while true; do
-            # Clean workspace except __pycache__
-            git clean -fd -e '__pycache__'
-            
-            # Download fresh proxies
             mkdir -p Proxies
             for t in http https socks4 socks5; do
-              curl -m 30 -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
+              curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
-
-            # Auto-detect and push changes
-            git add -A
-            if ! git diff --cached --quiet; then
-              git commit -m "📦 Auto update $(date +'%H:%M %d/%m')"
-              git push origin main
-            fi
             
+            git add -A
+            git diff --cached --quiet || (git commit -m "📦 Update $(date +'%H:%M %d/%m')" && git push origin main)
             sleep 60
           done
