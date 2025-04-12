@@ -13,15 +13,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code (Optimized)
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # Bỏ fetch-depth để tránh treo
-          ref: ${{ github.ref }}
-          path: main-repo  # Thêm path để tránh xung đột
+          path: main-repo
 
       - name: Cài đặt môi trường
-        working-directory: ./main-repo  # Làm việc trong thư mục đã checkout
+        working-directory: ./main-repo
         run: |
           echo "🛠️ Đang cài đặt môi trường..."
           pip install -r requirements.txt
@@ -32,61 +30,63 @@ jobs:
       - name: Cập nhật tự động
         working-directory: ./main-repo
         run: |
-          # Thiết lập git an toàn
+          # Thiết lập git
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
-          git config --global gc.auto 0  # Tắt GC để tránh lỗi
+          git config --global gc.auto 0
           
-          # Đồng bộ repo trước khi làm việc
-          git remote update
+          # Reset repo
+          git fetch origin
           git reset --hard origin/main
           git clean -fd
 
           COUNT=0
           while true; do
             COUNT=$((COUNT + 1))
-            echo "\n🔁 [LẦN $COUNT] Bắt đầu lúc $(date +'%H:%M:%S %d/%m/%Y')"
+            echo "\n═════════ LẦN $COUNT - $(date +'%H:%M:%S %d/%m/%Y') ═════════"
             
-            # Tải proxies với hiển thị số lượng
-            echo "📥 Tải proxies:"
+            # Tải proxies
+            echo "🔷 TẢI PROXIES"
             mkdir -p Proxies
             for t in http https socks4 socks5; do
-              echo "  ↳ $t..."
+              echo "  ▸ Loại: $t"
               if curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt"; then
                 count=$(wc -l < "Proxies/$t.txt")
-                echo "     ✔️ $count proxy"
+                echo "    ➤ Thành công: $count proxy"
               else
-                echo "     ❌ Lỗi"
+                echo "    ➤ Thất bại: Không tải được"
               fi
             done
 
-            # Xử lý git cực kỳ chắc chắn
-            changed_files=$(git status -uno --porcelain)
-            if [ -n "$changed_files" ]; then
-              echo "📝 File thay đổi:"
-              git diff --name-only --cached | while read file; do
-                echo "  • $file"
+            # Kiểm tra thay đổi
+            echo "\n🔷 KIỂM TRA THAY ĐỔI"
+            git add -A
+            changes=$(git diff --name-only --cached)
+            
+            if [ -z "$changes" ]; then
+              echo "  ▸ Không có thay đổi"
+            else
+              echo "  ▸ File thay đổi:"
+              echo "$changes" | while read file; do
+                echo "    • $file"
               done
-
-              echo "💾 Đang commit..."
-              git add -A
-              git commit -m "🔄 Update $(date +'%H:%M:%S %d/%m') [${COUNT}]"
               
-              # Push với retry thông minh
-              for i in {1..5}; do
+              # Commit và push
+              echo "\n🔷 COMMIT & PUSH"
+              git commit -m "🔄 Update $(date +'%H:%M:%S %d/%m') [${COUNT}]" > /dev/null
+              
+              for i in {1..3}; do
                 if git push origin main; then
-                  echo "✅ Push thành công!"
+                  echo "  ▸ Push thành công!"
                   break
                 else
-                  echo "🔄 Lỗi push (thử lại $i/5)..."
+                  echo "  ▸ Lỗi push (thử lại $i/3)"
                   git pull --rebase origin main
                   sleep $i
                 fi
               done
-            else
-              echo "⏩ Không có thay đổi"
             fi
             
-            echo "⏳ Chờ 60s..."
+            echo "\n⏳ Chờ 60 giây..."
             sleep 60
           done
