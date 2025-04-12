@@ -15,6 +15,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Tải toàn bộ lịch sử git để tránh lỗi
 
       - name: Setup environment
         run: |
@@ -27,6 +29,11 @@ jobs:
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           
+          # Reset và đồng bộ với remote trước khi bắt đầu
+          git remote update
+          git reset --hard origin/main
+          git clean -fd
+          
           COUNT=0
           while [ $COUNT -lt 300 ]; do
             COUNT=$((COUNT + 1))
@@ -38,10 +45,22 @@ jobs:
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || true
             done
             
-            # Thực hiện git commands trực tiếp (thay cho alias)
+            # Thêm thời gian chờ ngẫu nhiên để giảm xung đột
+            sleep $((RANDOM % 10 + 1))
+            
+            # Thực hiện git operations với kiểm tra lỗi
             git add Proxies/ data.db
-            git commit -m "Cập nhật tự động $(date +'%H:%M:%S')" || echo "⚠️ Không có thay đổi"
-            git push origin main || echo "⚠️ Lỗi khi push"
+            if git diff --cached --quiet; then
+              echo "⚠️ Không có thay đổi"
+            else
+              git commit -m "Cập nhật tự động $(date +'%H:%M:%S')"
+              until git push origin main; do
+                echo "⚠️ Lỗi khi push, thử lại sau..."
+                git pull --rebase origin main
+                sleep 5
+              done
+              echo "✅ Push thành công"
+            fi
             
             sleep 60
           done
