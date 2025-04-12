@@ -3,6 +3,10 @@ name: Proxy Master
 on:
   schedule:
     - cron: '0 */5 * * *'
+  push:
+    paths:
+      - '.github/workflows/*.yml'
+      - '**/*.yml'
 
 permissions:
   contents: write
@@ -13,65 +17,65 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Quan trọng để tránh lỗi git
 
       - name: Cài đặt môi trường
         run: |
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
-          echo "🟢 Hệ thống đã sẵn sàng | $(date +'%H:%M:%S')"
+          echo "🟢 Hệ thống sẵn sàng | $(date +'%H:%M:%S')"
 
       - name: Cập nhật proxy
         run: |
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
+          git config --global gc.auto 0
 
           while true; do
-            # Hiển thị thời gian
             echo "\n═════════ $(date +'%H:%M:%S %d/%m/%Y') ═════════"
             
-            # Đồng bộ repo
+            # Reset repo tránh lỗi
+            git reset --hard
+            git clean -fd
             git pull origin main
             
-            # Tải proxies
-            echo "🔷 KẾT QUẢ TẢI PROXY:"
+            echo "🔷 TẢI PROXY:"
             mkdir -p Proxies
             for t in http https socks4 socks5; do
-              if curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt"; then
+              if curl -m 15 -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt"; then
                 count=$(grep -cve '^\s*$' "Proxies/$t.txt")
                 echo "  ▸ $t: $count proxy"
               else
-                echo "  ▸ $t: ❌ KHÔNG TẢI ĐƯỢC"
+                echo "  ▸ $t: ❌ LỖI"
               fi
             done
 
-            # Xử lý git
             git add -A
             changes=$(git diff --name-only --cached)
             
             if [ -n "$changes" ]; then
-              echo "\n🔷 FILE THAY ĐỔI:"
+              echo "\n🔷 THAY ĐỔI:"
               echo "$changes" | while read file; do
                 echo "  • $file"
               done
               
-              git commit -m "🔄 Cập nhật lúc $(date +'%H:%M %d/%m')"
+              git commit -m "🔄 Update $(date +'%H:%M %d/%m')"
               
-              # Push với retry
               for i in {1..3}; do
                 if git push origin main; then
-                  echo "\n✅ CẬP NHẬT THÀNH CÔNG!"
+                  echo "\n✅ THÀNH CÔNG"
                   break
                 else
-                  echo "\n⚠️ LỖI PUSH - THỬ LẠI $i/3"
+                  echo "\n⚠️ THỬ LẠI $i/3"
                   git pull --rebase origin main
-                  sleep 2
+                  sleep $i
                 fi
               done
             else
-              echo "\n⏩ KHÔNG CÓ THAY ĐỔI"
+              echo "\n⏩ KHÔNG THAY ĐỔI"
             fi
             
-            echo "\n⏳ Đợi 60 giây..."
             sleep 60
           done
