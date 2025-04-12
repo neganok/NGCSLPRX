@@ -13,12 +13,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Bắt buộc để tránh lỗi git
+          ref: ${{ github.ref }}
 
       - name: Khởi động hệ thống
         run: |
+          # Xóa cache và reset repo trước khi bắt đầu
+          git reset --hard
+          git clean -fd
+          git pull origin main
+          
           pip install -r requirements.txt
           nohup python3 start.py > start.log 2>&1 &
           sleep 15
@@ -34,8 +40,8 @@ jobs:
             # Header
             echo "\n═════════ $(date +'%H:%M:%S %d/%m/%Y') ═════════"
             
-            # Đồng bộ repo trước mỗi lần chạy
-            git pull --rebase origin main
+            # Đồng bộ repo
+            git pull origin main
             
             # Tải proxies
             echo "🔷 TẢI PROXY MỚI"
@@ -60,7 +66,6 @@ jobs:
                 echo "  • $file"
               done
               
-              # Commit và push với retry
               echo "\n🔷 ĐANG CẬP NHẬT"
               git commit -m "🔄 Cập nhật lúc $(date +'%H:%M %d/%m')"
               
