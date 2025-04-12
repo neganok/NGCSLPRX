@@ -14,6 +14,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # QUAN TRỌNG: Giải quyết lỗi unstable object data
 
       - name: Cài đặt môi trường
         run: |
@@ -29,6 +31,11 @@ jobs:
           git config --global user.name "neganok"
           git config --global user.email "hackersvn1@gmail.com"
           
+          # Reset toàn bộ repo trước khi bắt đầu
+          git reset --hard
+          git clean -fd
+          git pull origin main
+
           COUNT=0
           while true; do
             COUNT=$((COUNT + 1))
@@ -40,12 +47,9 @@ jobs:
             for t in http https socks4 socks5; do
               echo "  ↳ Đang tải $t..."
               curl -s "http://127.0.0.1:8000/proxy/$t?time=3&minutes=15&format=text" -o "Proxies/$t.txt" || echo "  ❌ Lỗi khi tải $t"
-              # Đếm số lượng proxy
               if [ -f "Proxies/$t.txt" ]; then
                 count=$(wc -l < "Proxies/$t.txt")
                 echo "  ➡️ Đã tải $count proxy $t"
-              else
-                echo "  ➡️ Không có proxy $t nào"
               fi
             done
             
@@ -53,29 +57,27 @@ jobs:
             echo "🔄 Đang kiểm tra thay đổi..."
             git add Proxies/ data.db
             
-            if ! git diff --cached --quiet; then
-              echo "📝 Phát hiện thay đổi, đang tạo commit..."
+            # Kiểm tra chi tiết từng file thay đổi
+            changed_files=$(git diff --cached --name-only)
+            if [ -n "$changed_files" ]; then
+              echo "📝 Phát hiện thay đổi các file:"
+              for file in $changed_files; do
+                echo "  • $file"
+              done
+              
+              echo "💾 Đang tạo commit..."
               git commit -m "🔄 Cập nhật tự động lúc $(date +'%H:%M:%S %d/%m/%Y')"
               
-              echo "📤 Đang đẩy thay đổi lên GitHub..."
-              attempts=0
-              max_attempts=3
-              
-              while [ $attempts -lt $max_attempts ]; do
+              # Push với cơ chế retry mạnh mẽ
+              echo "🚀 Đang đẩy thay đổi lên GitHub..."
+              for attempt in {1..5}; do
                 if git push origin main; then
-                  echo "✅ Đẩy thay đổi thành công!"
+                  echo "✅ Đẩy thành công sau $attempt lần thử!"
                   break
                 else
-                  attempts=$((attempts + 1))
-                  echo "⚠️ Lỗi khi đẩy thay đổi (lần thử $attempts/$max_attempts)"
-                  
-                  if [ $attempts -lt $max_attempts ]; then
-                    echo "🔄 Đang đồng bộ lại với remote..."
-                    git pull --rebase origin main
-                    sleep 5
-                  else
-                    echo "❌ Đã thử $max_attempts lần nhưng không thành công"
-                  fi
+                  echo "⚠️ Lỗi push (lần thử $attempt/5)"
+                  git pull --rebase origin main
+                  sleep $((attempt * 2))  # Tăng thời gian chờ mỗi lần thử
                 fi
               done
             else
