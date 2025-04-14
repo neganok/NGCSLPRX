@@ -82,6 +82,6 @@ jobs:
               echo "🟢 Không có thay đổi nào, bỏ qua commit"
             fi
 
-            echo "🛌 Nghỉ 60 giây trước vòng tiếp theo..."
+            echo "🛌 Nghỉ 60 giây trước vòng tiếp theo..." 
             sleep 60
           done
