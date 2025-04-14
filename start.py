@@ -32,9 +32,6 @@ for proxy_type in proxy_types:
 # List of commands to run different scripts
 commands = [
     config['commands']['proxy_http'],
-    config['commands']['proxy_https'],
-    config['commands']['proxy_socks4'],
-    config['commands']['proxy_socks5'],
     config['commands']['checker'],
     config['commands']['api'],
     config['commands']['relay']
